@@ -1,7 +1,13 @@
 import { UserRole } from '@prisma/client';
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 export class UpdateUserDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(4)
+  @Matches(/^[a-zA-Z0-9_]+$/, { message: '用户名仅支持字母、数字、下划线' })
+  username?: string;
+
   @IsOptional()
   @IsEmail()
   email?: string;
@@ -13,7 +19,7 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(6)
+  @MinLength(1)
   password?: string;
 
   @IsOptional()

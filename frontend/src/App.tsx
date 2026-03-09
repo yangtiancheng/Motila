@@ -50,6 +50,7 @@ type UserRole = 'ADMIN' | 'USER';
 
 type AuthUser = {
   id: string;
+  username: string;
   email: string;
   name: string;
   role: UserRole;
@@ -130,12 +131,12 @@ function UserFormCard({
   onSubmit,
 }: {
   title: string;
-  initialValues?: Partial<{ email: string; name: string; password: string; role: UserRole }>;
+  initialValues?: Partial<{ username: string; email: string; name: string; password: string; role: UserRole }>;
   loading: boolean;
   submitText: string;
-  onSubmit: (values: { email: string; name: string; password?: string; role: UserRole }) => Promise<void>;
+  onSubmit: (values: { username: string; email: string; name: string; password?: string; role: UserRole }) => Promise<void>;
 }) {
-  const [form] = Form.useForm<{ email: string; name: string; password?: string; role: UserRole }>();
+  const [form] = Form.useForm<{ username: string; email: string; name: string; password?: string; role: UserRole }>();
 
   useEffect(() => {
     form.setFieldsValue({
@@ -151,7 +152,7 @@ function UserFormCard({
         fields={getUserFormSchema(title.includes('编辑'))}
         loading={loading}
         submitText={submitText}
-        onFinish={async (values: { email: string; name: string; password?: string; role: UserRole }) => {
+        onFinish={async (values: { username: string; email: string; name: string; password?: string; role: UserRole }) => {
           await onSubmit(values);
         }}
       />
@@ -426,41 +427,48 @@ function ThemeSettingsPage({
 }) {
   return (
     <Card title="主题设置">
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Space className="theme-setting-row" size={12} wrap>
-          <Typography.Text>皮肤</Typography.Text>
-          <Select
-            value={skin}
-            options={skinOptions}
-            onChange={(value) => onSkinChange(value as SkinMode)}
-            style={{ width: 180 }}
-          />
-        </Space>
+      <div className="theme-settings-grid">
+        <div className="theme-settings-row">
+          <Typography.Text className="theme-settings-label">皮肤</Typography.Text>
+          <div className="theme-settings-control">
+            <Select
+              value={skin}
+              options={skinOptions}
+              onChange={(value) => onSkinChange(value as SkinMode)}
+              style={{ width: '100%', maxWidth: 260 }}
+            />
+          </div>
+        </div>
 
-        <Space className="theme-setting-row" size={12} wrap>
-          <Typography.Text>品牌色</Typography.Text>
-          <ColorPicker
-            value={branding.primaryColor}
-            onChange={(color) => onBrandColorChange(color.toHexString())}
-            showText
-          />
-          <Button onClick={onResetBrandColor}>重置配色</Button>
-        </Space>
+        <div className="theme-settings-row">
+          <Typography.Text className="theme-settings-label">品牌色</Typography.Text>
+          <div className="theme-settings-control theme-settings-inline">
+            <ColorPicker
+              value={branding.primaryColor}
+              onChange={(color) => onBrandColorChange(color.toHexString())}
+              showText
+            />
+            <Button onClick={onResetBrandColor}>重置配色</Button>
+          </div>
+        </div>
 
-        <Space className="theme-setting-row" size={12} wrap>
-          <Button onClick={onExportThemeConfig}>导出主题</Button>
-          <Button onClick={() => brandingFileInputRef.current?.click()}>导入主题</Button>
-          <input
-            ref={brandingFileInputRef}
-            type="file"
-            accept="application/json"
-            style={{ display: 'none' }}
-            onChange={(event) => {
-              void onImportThemeFile(event);
-            }}
-          />
-        </Space>
-      </Space>
+        <div className="theme-settings-row theme-settings-row-actions">
+          <Typography.Text className="theme-settings-label">配置文件</Typography.Text>
+          <div className="theme-settings-control theme-settings-inline">
+            <Button onClick={onExportThemeConfig}>导出主题</Button>
+            <Button onClick={() => brandingFileInputRef.current?.click()}>导入主题</Button>
+            <input
+              ref={brandingFileInputRef}
+              type="file"
+              accept="application/json"
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                void onImportThemeFile(event);
+              }}
+            />
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }
@@ -470,6 +478,7 @@ function ProfilePage({ user }: { user: AuthUser }) {
     <Card title="个人信息">
       <Space direction="vertical" size={8}>
         <Typography.Text>昵称：{user.name}</Typography.Text>
+        <Typography.Text>用户名：{user.username}</Typography.Text>
         <Typography.Text>邮箱：{user.email}</Typography.Text>
         <Typography.Text>角色：{user.role}</Typography.Text>
         <Typography.Text type="secondary">用户详情页（个人视角）</Typography.Text>
@@ -733,7 +742,7 @@ function AppShell({
             <Form.Item
               label="新密码"
               name="password"
-              rules={[{ required: true, min: 6, message: '密码至少6位' }]}
+              rules={[{ required: true, min: 1, message: '密码不能为空' }]}
             >
               <Input.Password placeholder="请输入新密码" />
             </Form.Item>
@@ -775,7 +784,7 @@ function App() {
   );
   const [authLoading, setAuthLoading] = useState(false);
 
-  const [authForm] = Form.useForm<{ email: string; name?: string; password: string }>();
+  const [authForm] = Form.useForm<{ username: string; email?: string; name?: string; password: string }>();
 
   const [token, setToken] = useState<string>(() => localStorage.getItem('motila_token') ?? '');
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -801,13 +810,14 @@ function App() {
 
   const isAuthed = !!token && !!user;
 
-  const onSubmitAuth = async (values: { email: string; name?: string; password: string }) => {
+  const onSubmitAuth = async (values: { username: string; email?: string; name?: string; password: string }) => {
     setAuthLoading(true);
     try {
       const payload =
         mode === 'login'
-          ? { email: values.email, password: values.password }
+          ? { username: values.username, password: values.password }
           : {
+              username: values.username,
               email: values.email,
               name: values.name,
               password: values.password,
@@ -845,49 +855,76 @@ function App() {
         <div className={`auth-page skin-${effectiveSkin}`}>
           <div className="auth-shell">
             <Card className="auth-card" bordered={false}>
-              <div className="auth-header">
-                <Typography.Text className="auth-kicker">欢迎回来</Typography.Text>
-                <Typography.Title level={3} className="auth-title">
-                  {mode === 'login' ? '登录 Motila' : '创建 Motila 账号'}
-                </Typography.Title>
+              <div className="auth-panel">
+                <div className="auth-panel-hero">
+                  <Typography.Text className="auth-kicker">MOTILA WORKSPACE</Typography.Text>
+                  <Typography.Title level={2} className="auth-title">
+                    {mode === 'login' ? '欢迎登录 Motila' : '创建你的 Motila 账号'}
+                  </Typography.Title>
+                  <Typography.Paragraph className="auth-subtitle">
+                    一个开箱即用的管理系统框架，支持主题配置、权限控制与审计扩展。
+                  </Typography.Paragraph>
+                </div>
+
+                <div className="auth-panel-form">
+                  <Form form={authForm} layout="vertical" onFinish={onSubmitAuth} className="auth-form">
+                    <Form.Item
+                      label="用户名"
+                      name="username"
+                      rules={[
+                        { required: true, min: 4, message: '用户名至少4位' },
+                        { pattern: /^[a-zA-Z0-9_]+$/, message: '仅支持字母、数字、下划线' },
+                      ]}
+                    >
+                      <Input size="large" placeholder="请输入登录用户名" />
+                    </Form.Item>
+
+                    {mode === 'register' && (
+                      <>
+                        <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
+                          <Input size="large" placeholder="you@example.com" />
+                        </Form.Item>
+
+                        <Form.Item
+                          label="昵称"
+                          name="name"
+                          rules={[{ required: true, min: 2, message: '昵称至少2位' }]}
+                        >
+                          <Input size="large" placeholder="请输入昵称" />
+                        </Form.Item>
+                      </>
+                    )}
+
+                    <Form.Item label="密码" name="password" rules={[{ required: true, min: 1, message: '密码不能为空' }]}>
+                      <Input.Password size="large" placeholder="请输入密码" />
+                    </Form.Item>
+
+                    <div className="auth-actions">
+                      <Button type="primary" htmlType="submit" loading={authLoading} size="large" block>
+                        {mode === 'login' ? '立即登录' : '立即注册'}
+                      </Button>
+
+                      {mode === 'login' ? (
+                        <Space size={16}>
+                          <Typography.Link className="auth-mode-link" onClick={() => setMode('register')}>
+                            注册账号
+                          </Typography.Link>
+                          <Typography.Link
+                            className="auth-mode-link"
+                            onClick={() => message.info('功能暂未开放')}
+                          >
+                            忘记密码
+                          </Typography.Link>
+                        </Space>
+                      ) : (
+                        <Typography.Link className="auth-mode-link" onClick={() => setMode('login')}>
+                          返回登录
+                        </Typography.Link>
+                      )}
+                    </div>
+                  </Form>
+                </div>
               </div>
-
-              <div className="auth-switch">
-                <Button
-                  type={mode === 'login' ? 'primary' : 'default'}
-                  onClick={() => setMode('login')}
-                  className="auth-switch-btn"
-                >
-                  登录
-                </Button>
-                <Button
-                  type={mode === 'register' ? 'primary' : 'default'}
-                  onClick={() => setMode('register')}
-                  className="auth-switch-btn"
-                >
-                  注册
-                </Button>
-              </div>
-
-              <Form form={authForm} layout="vertical" onFinish={onSubmitAuth} className="auth-form">
-                <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
-                  <Input size="large" placeholder="you@example.com" />
-                </Form.Item>
-
-                {mode === 'register' && (
-                  <Form.Item label="昵称" name="name" rules={[{ required: true, min: 2, message: '昵称至少2位' }]}>
-                    <Input size="large" placeholder="请输入昵称" />
-                  </Form.Item>
-                )}
-
-                <Form.Item label="密码" name="password" rules={[{ required: true, min: 6, message: '密码至少6位' }]}>
-                  <Input.Password size="large" placeholder="至少6位" />
-                </Form.Item>
-
-                <Button type="primary" htmlType="submit" loading={authLoading} size="large" block>
-                  {mode === 'login' ? '立即登录' : '立即注册'}
-                </Button>
-              </Form>
             </Card>
           </div>
         </div>

@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SYSTEM_SUPER_ADMIN } from './system-admin.constants';
 
 @Injectable()
 export class UsersService {
@@ -19,6 +20,13 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
   ) {}
+
+  private isSystemSuperAdmin(user: { username?: string | null; email?: string | null }) {
+    return (
+      user.username === SYSTEM_SUPER_ADMIN.username &&
+      user.email === SYSTEM_SUPER_ADMIN.email
+    );
+  }
 
   async findAll(query: ListUsersQueryDto) {
     const page = query.page ?? 1;
@@ -29,6 +37,7 @@ export class UsersService {
       ...(query.keyword
         ? {
             OR: [
+              { username: { contains: query.keyword } },
               { email: { contains: query.keyword } },
               { name: { contains: query.keyword } },
             ],
@@ -42,6 +51,7 @@ export class UsersService {
         where,
         select: {
           id: true,
+          username: true,
           email: true,
           name: true,
           role: true,
@@ -68,6 +78,7 @@ export class UsersService {
       where: { id },
       select: {
         id: true,
+        username: true,
         email: true,
         name: true,
         role: true,
@@ -81,13 +92,17 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto, actor?: JwtUser) {
-    const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (exists) throw new ConflictException('邮箱已存在');
+    const existsByUsername = await this.prisma.user.findUnique({ where: { username: dto.username } });
+    if (existsByUsername) throw new ConflictException('用户名已存在');
+
+    const existsByEmail = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existsByEmail) throw new ConflictException('邮箱已存在');
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const created = await this.prisma.user.create({
       data: {
+        username: dto.username,
         email: dto.email,
         name: dto.name,
         passwordHash,
@@ -95,6 +110,7 @@ export class UsersService {
       },
       select: {
         id: true,
+        username: true,
         email: true,
         name: true,
         role: true,
@@ -122,10 +138,20 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto, actor?: JwtUser) {
     const existing = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true, email: true, name: true },
+      select: { id: true, role: true, username: true, email: true, name: true },
     });
 
     if (!existing) throw new NotFoundException('用户不存在');
+
+    if (dto.username) {
+      const duplicatedByUsername = await this.prisma.user.findFirst({
+        where: {
+          username: dto.username,
+          NOT: { id },
+        },
+      });
+      if (duplicatedByUsername) throw new ConflictException('用户名已存在');
+    }
 
     if (dto.email) {
       const duplicated = await this.prisma.user.findFirst({
@@ -144,17 +170,31 @@ export class UsersService {
       }
     }
 
+    if (this.isSystemSuperAdmin(existing)) {
+      if (dto.role === UserRole.USER) {
+        throw new ForbiddenException('系统超级管理员不允许降级为普通用户');
+      }
+      if (dto.username && dto.username !== existing.username) {
+        throw new ForbiddenException('系统超级管理员账号标识不允许修改');
+      }
+      if (dto.email && dto.email !== existing.email) {
+        throw new ForbiddenException('系统超级管理员账号标识不允许修改');
+      }
+    }
+
     if (actor && actor.sub === id && dto.role === UserRole.USER) {
       throw new ForbiddenException('不能把自己的角色降为普通用户');
     }
 
     const data: {
+      username?: string;
       email?: string;
       name?: string;
       role?: UserRole;
       passwordHash?: string;
     } = {};
 
+    if (dto.username) data.username = dto.username;
     if (dto.email) data.email = dto.email;
     if (dto.name) data.name = dto.name;
     if (dto.role) data.role = dto.role;
@@ -165,6 +205,7 @@ export class UsersService {
       data,
       select: {
         id: true,
+        username: true,
         email: true,
         name: true,
         role: true,
@@ -183,6 +224,7 @@ export class UsersService {
           : 'USER_UPDATE';
 
       const details: string[] = [];
+      if (dto.username && dto.username !== existing.username) details.push(`username: ${existing.username} -> ${dto.username}`);
       if (dto.email && dto.email !== existing.email) details.push(`email: ${existing.email} -> ${dto.email}`);
       if (dto.name && dto.name !== existing.name) details.push(`name: ${existing.name} -> ${dto.name}`);
       if (changedRole) details.push(`role: ${existing.role} -> ${dto.role}`);
@@ -241,13 +283,17 @@ export class UsersService {
   async remove(id: string, actor?: JwtUser) {
     const target = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true, name: true, email: true },
+      select: { id: true, role: true, username: true, name: true, email: true },
     });
 
     if (!target) throw new NotFoundException('用户不存在');
 
     if (actor && actor.sub === id) {
       throw new ForbiddenException('不能删除当前登录用户');
+    }
+
+    if (this.isSystemSuperAdmin(target)) {
+      throw new ForbiddenException('系统超级管理员不允许删除');
     }
 
     if (target.role === UserRole.ADMIN) {

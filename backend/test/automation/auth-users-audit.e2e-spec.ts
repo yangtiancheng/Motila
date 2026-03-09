@@ -2,6 +2,8 @@ import { execSync } from 'node:child_process';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
+import * as bcrypt from 'bcryptjs';
+import { UserRole } from '@prisma/client';
 import { AppModule } from '../../src/app.module';
 import { PrismaService } from '../../src/prisma/prisma.service';
 
@@ -9,6 +11,7 @@ type AuthResponse = {
   token: string;
   user: {
     id: string;
+    username: string;
     email: string;
     name: string;
     role: 'ADMIN' | 'USER';
@@ -22,7 +25,7 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
   beforeAll(async () => {
     process.env.DATABASE_URL = 'file:./test-automation.db';
 
-    execSync('npx prisma db push', {
+    execSync('npx prisma db push --accept-data-loss', {
       cwd: process.cwd(),
       env: {
         ...process.env,
@@ -43,7 +46,34 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
 
   beforeEach(async () => {
     await prisma.auditLog.deleteMany();
-    await prisma.user.deleteMany();
+    await prisma.user.deleteMany({
+      where: {
+        NOT: {
+          AND: [
+            { username: 'admin' },
+            { email: 'admin@proerp.cn' },
+          ],
+        },
+      },
+    });
+
+    const passwordHash = await bcrypt.hash('admin', 10);
+    await prisma.user.upsert({
+      where: { username: 'admin' },
+      update: {
+        email: 'admin@proerp.cn',
+        name: 'admin',
+        passwordHash,
+        role: UserRole.ADMIN,
+      },
+      create: {
+        username: 'admin',
+        email: 'admin@proerp.cn',
+        name: 'admin',
+        passwordHash,
+        role: UserRole.ADMIN,
+      },
+    });
   });
 
   afterAll(async () => {
@@ -52,7 +82,7 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
     }
   });
 
-  const register = async (payload: { email: string; name: string; password: string }) => {
+  const register = async (payload: { username: string; email: string; name: string; password: string }) => {
     const response = await request(app.getHttpServer())
       .post('/auth/register')
       .send(payload)
@@ -61,7 +91,7 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
     return response.body as AuthResponse;
   };
 
-  const login = async (payload: { email: string; password: string }) => {
+  const login = async (payload: { username: string; password: string }) => {
     const response = await request(app.getHttpServer())
       .post('/auth/login')
       .send(payload)
@@ -70,34 +100,30 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
     return response.body as AuthResponse;
   };
 
-  it('首个注册用户为 ADMIN，后续注册为 USER', async () => {
-    const first = await register({
-      email: 'admin@test.com',
-      name: 'Admin',
-      password: '123456',
-    });
+  it('系统默认存在超级管理员；新注册用户为 USER', async () => {
+    const loginSysAdmin = await login({ username: 'admin', password: 'admin' });
+
+    expect(loginSysAdmin.user.role).toBe('ADMIN');
+    expect(loginSysAdmin.user.email).toBe('admin@proerp.cn');
 
     const second = await register({
+      username: 'user01',
       email: 'user@test.com',
       name: 'User',
       password: '123456',
     });
 
-    expect(first.user.role).toBe('ADMIN');
     expect(second.user.role).toBe('USER');
   });
 
   it('管理员创建/更新/删除用户会生成审计日志', async () => {
-    const admin = await register({
-      email: 'admin@test.com',
-      name: 'Admin',
-      password: '123456',
-    });
+    const admin = await login({ username: 'admin', password: 'admin' });
 
     const createRes = await request(app.getHttpServer())
       .post('/users')
       .set('Authorization', `Bearer ${admin.token}`)
       .send({
+        username: 'staff01',
         email: 'staff@test.com',
         name: 'Staff',
         password: '123456',
@@ -149,27 +175,36 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
   });
 
   it('普通用户不能访问审计日志；管理员保护规则生效', async () => {
-    const admin = await register({
-      email: 'admin@test.com',
-      name: 'Admin',
-      password: '123456',
-    });
+    const admin = await login({ username: 'admin', password: 'admin' });
 
     await register({
+      username: 'user01',
       email: 'user@test.com',
       name: 'User',
       password: '123456',
     });
 
-    const userLogin = await login({
-      email: 'user@test.com',
-      password: '123456',
-    });
+    const userLogin = await login({ username: 'user01', password: '123456' });
 
     await request(app.getHttpServer())
       .get('/audit-logs')
       .set('Authorization', `Bearer ${userLogin.token}`)
       .expect(403);
+
+    await request(app.getHttpServer())
+      .patch(`/users/${admin.user.id}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .send({ role: 'USER' })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .delete(`/users/${admin.user.id}`)
+      .set('Authorization', `Bearer ${admin.token}`)
+      .expect(403);
+  });
+
+  it('系统超级管理员不允许删除或降级', async () => {
+    const admin = await login({ username: 'admin', password: 'admin' });
 
     await request(app.getHttpServer())
       .patch(`/users/${admin.user.id}`)
