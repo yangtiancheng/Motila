@@ -1,4 +1,4 @@
-# release.md
+# RELEASE.md
 
 > 项目：Motila
 > 维护方式：每次迭代结束更新「已完成」与「下一迭代计划」
