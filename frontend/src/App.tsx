@@ -873,9 +873,17 @@ function App() {
                   </Button>
 
                   {mode === 'login' ? (
-                    <Typography.Link className="auth-mode-link" onClick={() => setMode('register')}>
-                      注册账号
-                    </Typography.Link>
+                    <Space size={16}>
+                      <Typography.Link className="auth-mode-link" onClick={() => setMode('register')}>
+                        注册账号
+                      </Typography.Link>
+                      <Typography.Link
+                        className="auth-mode-link"
+                        onClick={() => message.info('功能暂未开放')}
+                      >
+                        忘记密码
+                      </Typography.Link>
+                    </Space>
                   ) : (
                     <Typography.Link className="auth-mode-link" onClick={() => setMode('login')}>
                       返回登录
