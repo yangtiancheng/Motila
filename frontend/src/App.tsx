@@ -845,28 +845,11 @@ function App() {
         <div className={`auth-page skin-${effectiveSkin}`}>
           <div className="auth-shell">
             <Card className="auth-card" bordered={false}>
-              <div className="auth-header">
+              <div className="auth-header auth-center-text">
                 <Typography.Text className="auth-kicker">欢迎回来</Typography.Text>
                 <Typography.Title level={3} className="auth-title">
                   {mode === 'login' ? '登录 Motila' : '创建 Motila 账号'}
                 </Typography.Title>
-              </div>
-
-              <div className="auth-switch">
-                <Button
-                  type={mode === 'login' ? 'primary' : 'default'}
-                  onClick={() => setMode('login')}
-                  className="auth-switch-btn"
-                >
-                  登录
-                </Button>
-                <Button
-                  type={mode === 'register' ? 'primary' : 'default'}
-                  onClick={() => setMode('register')}
-                  className="auth-switch-btn"
-                >
-                  注册
-                </Button>
               </div>
 
               <Form form={authForm} layout="vertical" onFinish={onSubmitAuth} className="auth-form">
@@ -884,9 +867,21 @@ function App() {
                   <Input.Password size="large" placeholder="至少6位" />
                 </Form.Item>
 
-                <Button type="primary" htmlType="submit" loading={authLoading} size="large" block>
-                  {mode === 'login' ? '立即登录' : '立即注册'}
-                </Button>
+                <div className="auth-actions">
+                  <Button type="primary" htmlType="submit" loading={authLoading} size="large" block>
+                    {mode === 'login' ? '立即登录' : '立即注册'}
+                  </Button>
+
+                  {mode === 'login' ? (
+                    <Typography.Link className="auth-mode-link" onClick={() => setMode('register')}>
+                      注册账号
+                    </Typography.Link>
+                  ) : (
+                    <Typography.Link className="auth-mode-link" onClick={() => setMode('login')}>
+                      返回登录
+                    </Typography.Link>
+                  )}
+                </div>
               </Form>
             </Card>
           </div>
