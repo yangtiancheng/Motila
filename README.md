@@ -34,6 +34,116 @@ Motila/
 └─ README.md
 ```
 
+## 一、从 GitHub 下载项目
+
+```bash
+git clone git@github.com:yangtiancheng/Motila.git
+cd Motila
+```
+
+> 若你本机未配置 SSH，可用 HTTPS：
+>
+> ```bash
+> git clone https://github.com/yangtiancheng/Motila.git
+> ```
+
+## 二、环境要求
+
+- Node.js 20+（建议 22 LTS）
+- npm 10+
+- PM2（用于生产/长期运行）
+
+安装 PM2：
+
+```bash
+npm i -g pm2
+```
+
+## 三、开发环境安装与启动
+
+### 1）安装依赖
+
+```bash
+# 在 Motila 根目录
+npm install
+cd frontend && npm install
+cd ../backend && npm install
+cd ..
+```
+
+### 2）初始化数据库（首次）
+
+```bash
+cd backend
+npx prisma generate
+npx prisma migrate dev --name init_sqlite
+cd ..
+```
+
+### 3）启动项目
+
+方式 A（推荐，一键）：
+
+```bash
+npm run dev:all
+```
+
+方式 B（分开启动）：
+
+```bash
+# 终端1
+cd backend
+npm run start
+
+# 终端2
+cd frontend
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+## 四、生产部署（PM2）
+
+### 1）构建
+
+```bash
+cd backend && npm run build
+cd ../frontend && npm run build
+cd ..
+```
+
+### 2）使用 PM2 启动
+
+```bash
+pm2 start ecosystem.config.cjs
+pm2 status
+pm2 save
+```
+
+### 3）更新后发布流程
+
+```bash
+git pull
+cd backend && npm run build
+cd ../frontend && npm run build
+cd ..
+pm2 restart motila-backend motila-frontend
+pm2 save
+```
+
+## 五、常见问题
+
+### 1）登录后白屏
+- 确认前端已最新代码（`frontend/src/main.tsx` 已使用 `BrowserRouter`）
+- 执行 `npm run build` 后重启 PM2
+
+### 2）数据库迁移报错
+- 先执行 `cd backend && npx prisma generate`
+- 再执行 `npx prisma migrate dev`
+
+### 3）端口访问
+- 前端默认：`5173`
+- 后端默认：`3000`
+- 前端请求后端地址使用：`http://<当前域名或IP>:3000`
+
 ## 文档
 
 - 系统说明书：`docs/system-spec.md`
