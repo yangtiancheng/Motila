@@ -735,7 +735,7 @@ function AppShell({
             <Form.Item
               label="新密码"
               name="password"
-              rules={[{ required: true, min: 6, message: '密码至少6位' }]}
+              rules={[{ required: true, min: 1, message: '密码不能为空' }]}
             >
               <Input.Password placeholder="请输入新密码" />
             </Form.Item>
@@ -888,8 +888,8 @@ function App() {
                       </>
                     )}
 
-                    <Form.Item label="密码" name="password" rules={[{ required: true, min: 6, message: '密码至少6位' }]}>
-                      <Input.Password size="large" placeholder="至少6位" />
+                    <Form.Item label="密码" name="password" rules={[{ required: true, min: 1, message: '密码不能为空' }]}>
+                      <Input.Password size="large" placeholder="请输入密码" />
                     </Form.Item>
 
                     <div className="auth-actions">

@@ -38,9 +38,9 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
       label: '密码',
       type: 'password',
       required: !isEdit,
-      min: 6,
-      message: '密码至少6位',
-      placeholder: isEdit ? '留空则不修改密码' : '至少6位',
+      min: 1,
+      message: '密码不能为空',
+      placeholder: isEdit ? '留空则不修改密码' : '请输入密码',
       visibleWhen: () => true,
     },
     {
