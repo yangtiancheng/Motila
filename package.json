@@ -1,0 +1,14 @@
+{
+  "name": "motila",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run start",
+    "dev:frontend": "npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173",
+    "dev:all": "concurrently -n backend,frontend -c blue,green \"npm --prefix backend run start\" \"npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "pm2": "^6.0.14"
+  }
+}

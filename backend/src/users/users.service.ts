@@ -1,0 +1,278 @@
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { UserRole } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
+import { AuditService } from '../audit/audit.service';
+import type { JwtUser } from '../common/jwt-user.type';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { ListUsersQueryDto } from './dto/list-users.query.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+
+@Injectable()
+export class UsersService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
+
+  async findAll(query: ListUsersQueryDto) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 10;
+    const skip = (page - 1) * pageSize;
+
+    const where = {
+      ...(query.keyword
+        ? {
+            OR: [
+              { email: { contains: query.keyword } },
+              { name: { contains: query.keyword } },
+            ],
+          }
+        : {}),
+      ...(query.role ? { role: query.role } : {}),
+    };
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  async findOne(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) throw new NotFoundException('用户不存在');
+    return user;
+  }
+
+  async create(dto: CreateUserDto, actor?: JwtUser) {
+    const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (exists) throw new ConflictException('邮箱已存在');
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    const created = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        name: dto.name,
+        passwordHash,
+        role: dto.role ?? UserRole.USER,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (actor) {
+      await this.auditService.log({
+        action: 'USER_CREATE',
+        targetId: created.id,
+        targetName: created.name,
+        targetEmail: created.email,
+        actorId: actor.sub,
+        actorEmail: actor.email,
+        actorRole: actor.role,
+        detail: `创建用户，角色=${created.role}`,
+      });
+    }
+
+    return created;
+  }
+
+  async update(id: string, dto: UpdateUserDto, actor?: JwtUser) {
+    const existing = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, email: true, name: true },
+    });
+
+    if (!existing) throw new NotFoundException('用户不存在');
+
+    if (dto.email) {
+      const duplicated = await this.prisma.user.findFirst({
+        where: {
+          email: dto.email,
+          NOT: { id },
+        },
+      });
+      if (duplicated) throw new ConflictException('邮箱已存在');
+    }
+
+    if (dto.role === UserRole.USER && existing.role === UserRole.ADMIN) {
+      const adminCount = await this.prisma.user.count({ where: { role: UserRole.ADMIN } });
+      if (adminCount <= 1) {
+        throw new ForbiddenException('系统至少保留一个管理员');
+      }
+    }
+
+    if (actor && actor.sub === id && dto.role === UserRole.USER) {
+      throw new ForbiddenException('不能把自己的角色降为普通用户');
+    }
+
+    const data: {
+      email?: string;
+      name?: string;
+      role?: UserRole;
+      passwordHash?: string;
+    } = {};
+
+    if (dto.email) data.email = dto.email;
+    if (dto.name) data.name = dto.name;
+    if (dto.role) data.role = dto.role;
+    if (dto.password) data.passwordHash = await bcrypt.hash(dto.password, 10);
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (actor) {
+      const changedRole = dto.role && dto.role !== existing.role;
+      const changedPassword = !!dto.password;
+      const action = changedRole
+        ? 'USER_ROLE_CHANGE'
+        : changedPassword
+          ? 'USER_PASSWORD_RESET'
+          : 'USER_UPDATE';
+
+      const details: string[] = [];
+      if (dto.email && dto.email !== existing.email) details.push(`email: ${existing.email} -> ${dto.email}`);
+      if (dto.name && dto.name !== existing.name) details.push(`name: ${existing.name} -> ${dto.name}`);
+      if (changedRole) details.push(`role: ${existing.role} -> ${dto.role}`);
+      if (changedPassword) details.push('password: changed');
+
+      await this.auditService.log({
+        action,
+        targetId: updated.id,
+        targetName: updated.name,
+        targetEmail: updated.email,
+        actorId: actor.sub,
+        actorEmail: actor.email,
+        actorRole: actor.role,
+        detail: details.join('; ') || '更新用户信息',
+      });
+    }
+
+    return updated;
+  }
+
+
+  async changeMyPassword(currentUser: JwtUser | undefined, password: string) {
+    if (!currentUser?.sub) {
+      throw new ForbiddenException('未授权访问');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: currentUser.sub },
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    if (!target) {
+      throw new NotFoundException('用户不存在');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await this.prisma.user.update({
+      where: { id: currentUser.sub },
+      data: { passwordHash },
+    });
+
+    await this.auditService.log({
+      action: 'USER_PASSWORD_RESET',
+      targetId: target.id,
+      targetName: target.name,
+      targetEmail: target.email,
+      actorId: currentUser.sub,
+      actorEmail: currentUser.email,
+      actorRole: currentUser.role,
+      detail: '用户修改了自己的密码',
+    });
+
+    return { success: true };
+  }
+
+  async remove(id: string, actor?: JwtUser) {
+    const target = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, name: true, email: true },
+    });
+
+    if (!target) throw new NotFoundException('用户不存在');
+
+    if (actor && actor.sub === id) {
+      throw new ForbiddenException('不能删除当前登录用户');
+    }
+
+    if (target.role === UserRole.ADMIN) {
+      const adminCount = await this.prisma.user.count({ where: { role: UserRole.ADMIN } });
+      if (adminCount <= 1) {
+        throw new ForbiddenException('系统至少保留一个管理员');
+      }
+    }
+
+    await this.prisma.user.delete({ where: { id } });
+
+    if (actor) {
+      await this.auditService.log({
+        action: 'USER_DELETE',
+        targetId: target.id,
+        targetName: target.name,
+        targetEmail: target.email,
+        actorId: actor.sub,
+        actorEmail: actor.email,
+        actorRole: actor.role,
+        detail: `删除用户，角色=${target.role}`,
+      });
+    }
+
+    return { success: true };
+  }
+}
+

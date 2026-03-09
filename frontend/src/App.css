@@ -1,0 +1,234 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #0f172a;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #f3f5fa;
+}
+
+.app-layout {
+  min-height: 100vh;
+  background: radial-gradient(circle at 12% 15%, #dbeafe 0%, #f8fafc 45%, #eef2ff 100%);
+}
+
+.app-sider {
+  border-right: 1px solid #e2e8f0;
+  box-shadow: 8px 0 20px rgba(15, 23, 42, 0.04);
+}
+
+.logo {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.5px;
+}
+
+.app-header {
+  min-height: 72px;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.header-breadcrumb {
+  margin: 0;
+}
+
+.profile-trigger {
+  border-radius: 999px;
+}
+
+.theme-setting-row {
+  width: 100%;
+}
+
+.app-content {
+  padding: 20px;
+  width: 100%;
+}
+
+.grid-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px 14px;
+}
+
+.auth-page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: radial-gradient(circle at 10% 20%, #dbeafe 0%, #f8fafc 45%, #eef2ff 100%);
+}
+
+.auth-page.skin-tech {
+  background: radial-gradient(circle at 10% 20%, #ede9fe 0%, #f8fafc 45%, #f5f3ff 100%);
+}
+
+.auth-page.skin-dark {
+  background: radial-gradient(circle at 12% 18%, #1e1b4b 0%, #0b1020 44%, #020617 100%);
+}
+
+.auth-shell {
+  width: min(460px, 100%);
+}
+
+.auth-card {
+  border-radius: 18px !important;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12) !important;
+}
+
+.auth-header {
+  margin-bottom: 12px;
+}
+
+.auth-kicker {
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.auth-page.skin-tech .auth-kicker {
+  color: #7c3aed;
+}
+
+.auth-page.skin-dark .auth-kicker {
+  color: #c4b5fd;
+}
+
+.auth-title {
+  margin: 6px 0 0 !important;
+}
+
+.auth-switch {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 10px;
+}
+
+.auth-switch-btn {
+  flex: 1;
+  border-radius: 10px;
+}
+
+.auth-form .ant-input-affix-wrapper,
+.auth-form .ant-input {
+  border-radius: 10px;
+}
+
+.skin-dark .app-layout {
+  background: radial-gradient(circle at 12% 18%, #1e1b4b 0%, #0b1020 44%, #020617 100%);
+}
+
+.skin-dark .app-sider {
+  border-right-color: #334155;
+  background: #0f172a !important;
+}
+
+.skin-dark .logo {
+  color: #e5e7eb;
+}
+
+.skin-dark .app-header {
+  background: rgba(15, 23, 42, 0.85);
+  border-bottom-color: #334155;
+}
+
+.skin-dark .ant-typography,
+.skin-dark .ant-breadcrumb,
+.skin-dark .ant-breadcrumb-link,
+.skin-dark .ant-breadcrumb-separator {
+  color: #e5e7eb !important;
+}
+
+.skin-dark .ant-card,
+.skin-dark .ant-input,
+.skin-dark .ant-input-affix-wrapper,
+.skin-dark .ant-select-selector,
+.skin-dark .ant-table,
+.skin-dark .ant-table-container,
+.skin-dark .ant-table-thead > tr > th,
+.skin-dark .ant-table-tbody > tr > td {
+  background: #0f172a !important;
+  color: #e5e7eb !important;
+  border-color: #334155 !important;
+}
+
+.skin-dark .ant-btn-default {
+  background: #1e293b;
+  color: #e5e7eb;
+  border-color: #334155;
+}
+
+@media (max-width: 960px) {
+  .app-header {
+    padding: 10px 12px;
+  }
+
+  .brand-toolbar {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .brand-group {
+    padding: 2px 6px;
+  }
+
+  .app-content {
+    padding: 12px;
+  }
+
+  .grid-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-layout .ant-layout-sider {
+    width: 0 !important;
+    min-width: 0 !important;
+    flex: 0 0 0 !important;
+    overflow: hidden;
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .brand-toolbar {
+    width: 100%;
+  }
+
+  .brand-group {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .auth-page {
+    padding: 14px 10px;
+  }
+
+  .auth-card {
+    border-radius: 14px !important;
+  }
+
+  .auth-switch {
+    gap: 8px;
+  }
+}
