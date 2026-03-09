@@ -427,41 +427,48 @@ function ThemeSettingsPage({
 }) {
   return (
     <Card title="主题设置">
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Space className="theme-setting-row" size={12} wrap>
-          <Typography.Text>皮肤</Typography.Text>
-          <Select
-            value={skin}
-            options={skinOptions}
-            onChange={(value) => onSkinChange(value as SkinMode)}
-            style={{ width: 180 }}
-          />
-        </Space>
+      <div className="theme-settings-grid">
+        <div className="theme-settings-row">
+          <Typography.Text className="theme-settings-label">皮肤</Typography.Text>
+          <div className="theme-settings-control">
+            <Select
+              value={skin}
+              options={skinOptions}
+              onChange={(value) => onSkinChange(value as SkinMode)}
+              style={{ width: '100%', maxWidth: 260 }}
+            />
+          </div>
+        </div>
 
-        <Space className="theme-setting-row" size={12} wrap>
-          <Typography.Text>品牌色</Typography.Text>
-          <ColorPicker
-            value={branding.primaryColor}
-            onChange={(color) => onBrandColorChange(color.toHexString())}
-            showText
-          />
-          <Button onClick={onResetBrandColor}>重置配色</Button>
-        </Space>
+        <div className="theme-settings-row">
+          <Typography.Text className="theme-settings-label">品牌色</Typography.Text>
+          <div className="theme-settings-control theme-settings-inline">
+            <ColorPicker
+              value={branding.primaryColor}
+              onChange={(color) => onBrandColorChange(color.toHexString())}
+              showText
+            />
+            <Button onClick={onResetBrandColor}>重置配色</Button>
+          </div>
+        </div>
 
-        <Space className="theme-setting-row" size={12} wrap>
-          <Button onClick={onExportThemeConfig}>导出主题</Button>
-          <Button onClick={() => brandingFileInputRef.current?.click()}>导入主题</Button>
-          <input
-            ref={brandingFileInputRef}
-            type="file"
-            accept="application/json"
-            style={{ display: 'none' }}
-            onChange={(event) => {
-              void onImportThemeFile(event);
-            }}
-          />
-        </Space>
-      </Space>
+        <div className="theme-settings-row theme-settings-row-actions">
+          <Typography.Text className="theme-settings-label">配置文件</Typography.Text>
+          <div className="theme-settings-control theme-settings-inline">
+            <Button onClick={onExportThemeConfig}>导出主题</Button>
+            <Button onClick={() => brandingFileInputRef.current?.click()}>导入主题</Button>
+            <input
+              ref={brandingFileInputRef}
+              type="file"
+              accept="application/json"
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                void onImportThemeFile(event);
+              }}
+            />
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }

@@ -51,8 +51,40 @@ body {
   border-radius: 999px;
 }
 
-.theme-setting-row {
-  width: 100%;
+.theme-settings-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.theme-settings-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.theme-settings-label {
+  color: #475569;
+  font-weight: 500;
+}
+
+.theme-settings-control {
+  min-width: 0;
+}
+
+.theme-settings-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.theme-settings-row-actions .theme-settings-inline .ant-btn {
+  min-width: 96px;
 }
 
 .app-content {
@@ -263,6 +295,15 @@ body {
   .app-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .theme-settings-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .theme-settings-row {
+    padding: 10px;
   }
 
   .auth-page {
