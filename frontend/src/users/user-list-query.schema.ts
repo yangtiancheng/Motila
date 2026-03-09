@@ -16,7 +16,7 @@ export const userListQueryFields: QueryField<UserListQueryValues>[] = [
   {
     name: 'keyword',
     type: 'input',
-    placeholder: '按昵称/邮箱搜索',
+    placeholder: '按用户名/昵称/邮箱搜索',
     width: 240,
   },
   {

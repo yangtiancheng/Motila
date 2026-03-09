@@ -18,8 +18,13 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) {
+    const existingByUsername = await this.prisma.user.findUnique({ where: { username: dto.username } });
+    if (existingByUsername) {
+      throw new ConflictException('用户名已存在');
+    }
+
+    const existingByEmail = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existingByEmail) {
       throw new ConflictException('邮箱已注册');
     }
 
@@ -27,12 +32,13 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
       data: {
+        username: dto.username,
         email: dto.email,
         name: dto.name,
         passwordHash,
         role: usersCount === 0 ? UserRole.ADMIN : UserRole.USER,
       },
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, username: true, email: true, name: true, role: true },
     });
 
     const token = await this.signToken(user.id, user.email, user.role);
@@ -40,15 +46,15 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({ where: { username: dto.username } });
 
     if (!user) {
-      throw new UnauthorizedException('邮箱或密码错误');
+      throw new UnauthorizedException('用户名或密码错误');
     }
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) {
-      throw new UnauthorizedException('邮箱或密码错误');
+      throw new UnauthorizedException('用户名或密码错误');
     }
 
     const token = await this.signToken(user.id, user.email, user.role);
@@ -56,6 +62,7 @@ export class AuthService {
       token,
       user: {
         id: user.id,
+        username: user.username,
         email: user.email,
         name: user.name,
         role: user.role,

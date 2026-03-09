@@ -22,7 +22,7 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
   beforeAll(async () => {
     process.env.DATABASE_URL = 'file:./test-automation.db';
 
-    execSync('npx prisma db push', {
+    execSync('npx prisma db push --accept-data-loss', {
       cwd: process.cwd(),
       env: {
         ...process.env,
@@ -52,7 +52,7 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
     }
   });
 
-  const register = async (payload: { email: string; name: string; password: string }) => {
+  const register = async (payload: { username: string; email: string; name: string; password: string }) => {
     const response = await request(app.getHttpServer())
       .post('/auth/register')
       .send(payload)
@@ -61,7 +61,7 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
     return response.body as AuthResponse;
   };
 
-  const login = async (payload: { email: string; password: string }) => {
+  const login = async (payload: { username: string; password: string }) => {
     const response = await request(app.getHttpServer())
       .post('/auth/login')
       .send(payload)
@@ -72,12 +72,14 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
 
   it('首个注册用户为 ADMIN，后续注册为 USER', async () => {
     const first = await register({
+      username: 'admin',
       email: 'admin@test.com',
       name: 'Admin',
       password: '123456',
     });
 
     const second = await register({
+      username: 'user01',
       email: 'user@test.com',
       name: 'User',
       password: '123456',
@@ -89,6 +91,7 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
 
   it('管理员创建/更新/删除用户会生成审计日志', async () => {
     const admin = await register({
+      username: 'admin',
       email: 'admin@test.com',
       name: 'Admin',
       password: '123456',
@@ -98,6 +101,7 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
       .post('/users')
       .set('Authorization', `Bearer ${admin.token}`)
       .send({
+        username: 'staff01',
         email: 'staff@test.com',
         name: 'Staff',
         password: '123456',
@@ -150,19 +154,21 @@ describe('Automation E2E: Auth + Users + AuditLogs', () => {
 
   it('普通用户不能访问审计日志；管理员保护规则生效', async () => {
     const admin = await register({
+      username: 'admin',
       email: 'admin@test.com',
       name: 'Admin',
       password: '123456',
     });
 
     await register({
+      username: 'user01',
       email: 'user@test.com',
       name: 'User',
       password: '123456',
     });
 
     const userLogin = await login({
-      email: 'user@test.com',
+      username: 'user01',
       password: '123456',
     });
 
