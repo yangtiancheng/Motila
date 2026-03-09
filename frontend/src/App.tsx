@@ -845,52 +845,63 @@ function App() {
         <div className={`auth-page skin-${effectiveSkin}`}>
           <div className="auth-shell">
             <Card className="auth-card" bordered={false}>
-              <div className="auth-header auth-center-text">
-                <Typography.Text className="auth-kicker">欢迎回来</Typography.Text>
-                <Typography.Title level={3} className="auth-title">
-                  {mode === 'login' ? '登录 Motila' : '创建 Motila 账号'}
-                </Typography.Title>
-              </div>
-
-              <Form form={authForm} layout="vertical" onFinish={onSubmitAuth} className="auth-form">
-                <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
-                  <Input size="large" placeholder="you@example.com" />
-                </Form.Item>
-
-                {mode === 'register' && (
-                  <Form.Item label="昵称" name="name" rules={[{ required: true, min: 2, message: '昵称至少2位' }]}>
-                    <Input size="large" placeholder="请输入昵称" />
-                  </Form.Item>
-                )}
-
-                <Form.Item label="密码" name="password" rules={[{ required: true, min: 6, message: '密码至少6位' }]}>
-                  <Input.Password size="large" placeholder="至少6位" />
-                </Form.Item>
-
-                <div className="auth-actions">
-                  <Button type="primary" htmlType="submit" loading={authLoading} size="large" block>
-                    {mode === 'login' ? '立即登录' : '立即注册'}
-                  </Button>
-
-                  {mode === 'login' ? (
-                    <Space size={16}>
-                      <Typography.Link className="auth-mode-link" onClick={() => setMode('register')}>
-                        注册账号
-                      </Typography.Link>
-                      <Typography.Link
-                        className="auth-mode-link"
-                        onClick={() => message.info('功能暂未开放')}
-                      >
-                        忘记密码
-                      </Typography.Link>
-                    </Space>
-                  ) : (
-                    <Typography.Link className="auth-mode-link" onClick={() => setMode('login')}>
-                      返回登录
-                    </Typography.Link>
-                  )}
+              <div className="auth-panel">
+                <div className="auth-panel-hero">
+                  <Typography.Text className="auth-kicker">MOTILA WORKSPACE</Typography.Text>
+                  <Typography.Title level={2} className="auth-title">
+                    {mode === 'login' ? '欢迎登录 Motila' : '创建你的 Motila 账号'}
+                  </Typography.Title>
+                  <Typography.Paragraph className="auth-subtitle">
+                    更清晰的后台工作台体验，支持主题切换、权限管控与审计追踪。
+                  </Typography.Paragraph>
                 </div>
-              </Form>
+
+                <div className="auth-panel-form">
+                  <Form form={authForm} layout="vertical" onFinish={onSubmitAuth} className="auth-form">
+                    <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
+                      <Input size="large" placeholder="you@example.com" />
+                    </Form.Item>
+
+                    {mode === 'register' && (
+                      <Form.Item
+                        label="昵称"
+                        name="name"
+                        rules={[{ required: true, min: 2, message: '昵称至少2位' }]}
+                      >
+                        <Input size="large" placeholder="请输入昵称" />
+                      </Form.Item>
+                    )}
+
+                    <Form.Item label="密码" name="password" rules={[{ required: true, min: 6, message: '密码至少6位' }]}>
+                      <Input.Password size="large" placeholder="至少6位" />
+                    </Form.Item>
+
+                    <div className="auth-actions">
+                      <Button type="primary" htmlType="submit" loading={authLoading} size="large" block>
+                        {mode === 'login' ? '立即登录' : '立即注册'}
+                      </Button>
+
+                      {mode === 'login' ? (
+                        <Space size={16}>
+                          <Typography.Link className="auth-mode-link" onClick={() => setMode('register')}>
+                            注册账号
+                          </Typography.Link>
+                          <Typography.Link
+                            className="auth-mode-link"
+                            onClick={() => message.info('功能暂未开放')}
+                          >
+                            忘记密码
+                          </Typography.Link>
+                        </Space>
+                      ) : (
+                        <Typography.Link className="auth-mode-link" onClick={() => setMode('login')}>
+                          返回登录
+                        </Typography.Link>
+                      )}
+                    </div>
+                  </Form>
+                </div>
+              </div>
             </Card>
           </div>
         </div>
