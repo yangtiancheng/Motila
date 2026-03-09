@@ -28,7 +28,6 @@ export class AuthService {
       throw new ConflictException('邮箱已注册');
     }
 
-    const usersCount = await this.prisma.user.count();
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.prisma.user.create({
       data: {
@@ -36,7 +35,7 @@ export class AuthService {
         email: dto.email,
         name: dto.name,
         passwordHash,
-        role: usersCount === 0 ? UserRole.ADMIN : UserRole.USER,
+        role: UserRole.USER,
       },
       select: { id: true, username: true, email: true, name: true, role: true },
     });

@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { SYSTEM_SUPER_ADMIN } from './system-admin.constants';
 
 @Injectable()
 export class UsersService {
@@ -19,6 +20,13 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
   ) {}
+
+  private isSystemSuperAdmin(user: { username?: string | null; email?: string | null }) {
+    return (
+      user.username === SYSTEM_SUPER_ADMIN.username &&
+      user.email === SYSTEM_SUPER_ADMIN.email
+    );
+  }
 
   async findAll(query: ListUsersQueryDto) {
     const page = query.page ?? 1;
@@ -162,6 +170,18 @@ export class UsersService {
       }
     }
 
+    if (this.isSystemSuperAdmin(existing)) {
+      if (dto.role === UserRole.USER) {
+        throw new ForbiddenException('系统超级管理员不允许降级为普通用户');
+      }
+      if (dto.username && dto.username !== existing.username) {
+        throw new ForbiddenException('系统超级管理员账号标识不允许修改');
+      }
+      if (dto.email && dto.email !== existing.email) {
+        throw new ForbiddenException('系统超级管理员账号标识不允许修改');
+      }
+    }
+
     if (actor && actor.sub === id && dto.role === UserRole.USER) {
       throw new ForbiddenException('不能把自己的角色降为普通用户');
     }
@@ -263,13 +283,17 @@ export class UsersService {
   async remove(id: string, actor?: JwtUser) {
     const target = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true, name: true, email: true },
+      select: { id: true, role: true, username: true, name: true, email: true },
     });
 
     if (!target) throw new NotFoundException('用户不存在');
 
     if (actor && actor.sub === id) {
       throw new ForbiddenException('不能删除当前登录用户');
+    }
+
+    if (this.isSystemSuperAdmin(target)) {
+      throw new ForbiddenException('系统超级管理员不允许删除');
     }
 
     if (target.role === UserRole.ADMIN) {
