@@ -433,9 +433,10 @@ function UsersListPage({
               applyFilters(values);
             }}
           />
-          <div>
-            <Button onClick={() => navigate('/users/create')} disabled={!canCreate}>新建用户</Button>
-          </div>
+          <Space>
+            <Button type="primary" onClick={() => navigate('/users/create')} disabled={!canCreate}>新建用户</Button>
+            <Button onClick={() => applyFilters(userListQueryInitialValues)}>重置</Button>
+          </Space>
         </Space>
       </Card>
 
@@ -455,6 +456,7 @@ function UsersListPage({
               setPageSize(nextPageSize);
             },
           }}
+          size="middle"
         />
       </Card>
 

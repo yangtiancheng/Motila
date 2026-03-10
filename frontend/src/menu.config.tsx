@@ -23,14 +23,6 @@ export const menuConfig: MenuItemConfig[] = [
     requiredPermissions: ['dashboard.read'],
     moduleCode: 'core',
   },
-  {
-    key: 'users',
-    label: '用户管理',
-    path: '/users',
-    icon: <TeamOutlined />,
-    requiredPermissions: ['users.read'],
-    moduleCode: 'users',
-  },
   projectMenuItem,
   hrMenuItem,
   {
@@ -38,6 +30,14 @@ export const menuConfig: MenuItemConfig[] = [
     label: '配置',
     icon: <SettingOutlined />,
     children: [
+      {
+        key: 'users',
+        label: '用户管理',
+        path: '/users',
+        icon: <TeamOutlined />,
+        requiredPermissions: ['users.read'],
+        moduleCode: 'users',
+      },
       {
         key: 'module-settings',
         label: '模块管理',
