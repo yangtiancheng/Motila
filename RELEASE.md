@@ -9,7 +9,7 @@
 - 修复系统配置创建时 `logoUrl` 为空触发 URL 校验报错问题
 
 - 用户头像支持上传图片（base64）与预览，展示优先级：avatarImage > avatarUrl
-- 修复系统配置编辑弹窗 Logo 上传字段绑定问题（保存后再次打开图片可回显）
+- 修复权限配置中分配用户报错：`pageSize must not be less than 1`（支持 `pageSize=0` 用于全量拉取）
 - 顶部用户区域改为“头像 + 昵称 + 角色”展示（非按钮样式）
 - 用户管理新增头像字段（avatarUrl），列表与详情页展示
 

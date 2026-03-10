@@ -39,8 +39,7 @@
 - 系统配置编辑支持 Logo 上传并可持久化回显
 - Footer 支持部分超链接 Markdown：`[文本](https://example.com)`
 
-### 2.4 权限与模块
-- RBAC 基础能力：角色、权限、用户角色分配
+- RBAC 分配用户弹窗支持全量用户拉取（`pageSize=0`），避免分页校验报错
 - 新增权限点：`settings.read`、`settings.update`
 - 模块开关（启用/禁用）影响菜单与路由可见性
 
