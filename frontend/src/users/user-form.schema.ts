@@ -4,6 +4,7 @@ export type UserFormValues = {
   username: string;
   email: string;
   name: string;
+  avatarUrl?: string;
   password?: string;
   role: 'ADMIN' | 'USER';
 };
@@ -34,6 +35,13 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
       message: '昵称至少2位',
     },
     {
+      name: 'avatarUrl',
+      label: '头像地址',
+      type: 'input',
+      required: false,
+      placeholder: 'https://example.com/avatar.png',
+    },
+    {
       name: 'password',
       label: '密码',
       type: 'password',
@@ -58,7 +66,13 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
 
 export function normalizeUserFormValues(values: UserFormValues): UserFormValues {
   return applySchemaTransforms(values, [
-    (input) => ({ ...input, username: input.username.trim(), email: input.email.trim(), name: input.name.trim() }),
+    (input) => ({
+      ...input,
+      username: input.username.trim(),
+      email: input.email.trim(),
+      name: input.name.trim(),
+      avatarUrl: input.avatarUrl?.trim() ? input.avatarUrl.trim() : undefined,
+    }),
     (input) => {
       if (!input.password || !input.password.trim()) {
         return { ...input, password: undefined };

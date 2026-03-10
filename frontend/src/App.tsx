@@ -20,6 +20,7 @@ import {
   Typography,
   Switch,
   Upload,
+  Avatar,
 } from 'antd';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -56,6 +57,7 @@ type AuthUser = {
   username?: string;
   email: string;
   name?: string;
+  avatarUrl?: string;
   role: UserRole;
   roles: string[];
   permissions: string[];
@@ -268,12 +270,33 @@ function UserFormCard({
   onSubmit,
 }: {
   title: string;
-  initialValues?: Partial<{ username: string; email: string; name: string; password: string; role: UserRole }>;
+  initialValues?: Partial<{
+    username: string;
+    email: string;
+    name: string;
+    avatarUrl: string;
+    password: string;
+    role: UserRole;
+  }>;
   loading: boolean;
   submitText: string;
-  onSubmit: (values: { username: string; email: string; name: string; password?: string; role: UserRole }) => Promise<void>;
+  onSubmit: (values: {
+    username: string;
+    email: string;
+    name: string;
+    avatarUrl?: string;
+    password?: string;
+    role: UserRole;
+  }) => Promise<void>;
 }) {
-  const [form] = Form.useForm<{ username: string; email: string; name: string; password?: string; role: UserRole }>();
+  const [form] = Form.useForm<{
+    username: string;
+    email: string;
+    name: string;
+    avatarUrl?: string;
+    password?: string;
+    role: UserRole;
+  }>();
 
   useEffect(() => {
     form.setFieldsValue({
@@ -399,6 +422,15 @@ function UsersListPage({
   }, [page, pageSize, filters]);
 
   const columns = [
+    {
+      title: '头像',
+      dataIndex: 'avatarUrl',
+      key: 'avatarUrl',
+      width: 72,
+      render: (_: unknown, record: UserItem) => (
+        <Avatar src={record.avatarUrl}>{(record.name ?? record.email)?.slice(0, 1)}</Avatar>
+      ),
+    },
     { title: '昵称', dataIndex: 'name', key: 'name' },
     { title: '邮箱', dataIndex: 'email', key: 'email' },
     {
@@ -564,12 +596,12 @@ function UserEditPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(false);
-  const [initial, setInitial] = useState<Partial<{ email: string; name: string; role: UserRole }>>({});
+  const [initial, setInitial] = useState<Partial<{ email: string; name: string; avatarUrl?: string; role: UserRole }>>({});
 
   useEffect(() => {
     if (!id) return;
     api<UserItem>(`/users/${id}`, undefined, true)
-      .then((res) => setInitial({ email: res.email, name: res.name, role: res.role }))
+      .then((res) => setInitial({ email: res.email, name: res.name, avatarUrl: res.avatarUrl, role: res.role }))
       .catch((error) => message.error(parseError(error)));
   }, [id, message]);
 
@@ -614,6 +646,7 @@ function UserShowPage() {
   return (
     <Card title="用户详情">
       <Space direction="vertical" size={8}>
+        <Avatar src={data.avatarUrl} size={64}>{(data.name ?? data.email).slice(0, 1)}</Avatar>
         <Typography.Text>昵称：{data.name}</Typography.Text>
         <Typography.Text>邮箱：{data.email}</Typography.Text>
         <Typography.Text>角色：{data.role}</Typography.Text>
@@ -1265,6 +1298,7 @@ function ProfilePage({ user }: { user: AuthUser }) {
   return (
     <Card title="个人信息">
       <Space direction="vertical" size={8}>
+        <Avatar src={user.avatarUrl} size={64}>{(user.name ?? user.email).slice(0, 1)}</Avatar>
         <Typography.Text>昵称：{user.name ?? '-'}</Typography.Text>
         <Typography.Text>用户名：{user.username ?? '-'}</Typography.Text>
         <Typography.Text>邮箱：{user.email}</Typography.Text>
@@ -2277,8 +2311,9 @@ function App() {
         const mergedUser: AuthUser = {
           ...user,
           ...me,
-          username: user.username,
-          name: user.name,
+          username: me.username ?? user.username,
+          name: me.name ?? user.name,
+          avatarUrl: me.avatarUrl ?? user.avatarUrl,
           roles: me.roles ?? user.roles ?? [],
           permissions: me.permissions ?? user.permissions ?? [],
           modules: me.modules ?? user.modules ?? ['core'],
@@ -2320,8 +2355,9 @@ function App() {
       const mergedUser: AuthUser = {
         ...data.user,
         ...me,
-        username: data.user.username,
-        name: data.user.name,
+        username: me.username ?? data.user.username,
+        name: me.name ?? data.user.name,
+        avatarUrl: me.avatarUrl ?? data.user.avatarUrl,
         roles: me.roles ?? data.user.roles ?? [],
         permissions: me.permissions ?? data.user.permissions ?? [],
         modules: me.modules ?? data.user.modules ?? ['core'],

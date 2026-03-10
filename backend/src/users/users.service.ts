@@ -55,6 +55,7 @@ export class UsersService {
           username: true,
           email: true,
           name: true,
+          avatarUrl: true,
           role: true,
           createdAt: true,
           updatedAt: true,
@@ -98,6 +99,7 @@ export class UsersService {
         username: true,
         email: true,
         name: true,
+        avatarUrl: true,
         role: true,
         createdAt: true,
         updatedAt: true,
@@ -122,6 +124,7 @@ export class UsersService {
         username: dto.username,
         email: dto.email,
         name: dto.name,
+        avatarUrl: dto.avatarUrl,
         passwordHash,
         role: dto.role ?? UserRole.USER,
       },
@@ -130,6 +133,7 @@ export class UsersService {
         username: true,
         email: true,
         name: true,
+        avatarUrl: true,
         role: true,
         createdAt: true,
         updatedAt: true,
@@ -155,7 +159,7 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto, actor?: JwtUser) {
     const existing = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true, username: true, email: true, name: true },
+      select: { id: true, role: true, username: true, email: true, name: true, avatarUrl: true },
     });
 
     if (!existing) throw new NotFoundException('用户不存在');
@@ -207,6 +211,7 @@ export class UsersService {
       username?: string;
       email?: string;
       name?: string;
+      avatarUrl?: string;
       role?: UserRole;
       passwordHash?: string;
     } = {};
@@ -214,6 +219,7 @@ export class UsersService {
     if (dto.username) data.username = dto.username;
     if (dto.email) data.email = dto.email;
     if (dto.name) data.name = dto.name;
+    if (dto.avatarUrl) data.avatarUrl = dto.avatarUrl;
     if (dto.role) data.role = dto.role;
     if (dto.password) data.passwordHash = await bcrypt.hash(dto.password, 10);
 
@@ -225,6 +231,7 @@ export class UsersService {
         username: true,
         email: true,
         name: true,
+        avatarUrl: true,
         role: true,
         createdAt: true,
         updatedAt: true,
@@ -244,6 +251,7 @@ export class UsersService {
       if (dto.username && dto.username !== existing.username) details.push(`username: ${existing.username} -> ${dto.username}`);
       if (dto.email && dto.email !== existing.email) details.push(`email: ${existing.email} -> ${dto.email}`);
       if (dto.name && dto.name !== existing.name) details.push(`name: ${existing.name} -> ${dto.name}`);
+      if (dto.avatarUrl && dto.avatarUrl !== existing.avatarUrl) details.push('avatar: changed');
       if (changedRole) details.push(`role: ${existing.role} -> ${dto.role}`);
       if (changedPassword) details.push('password: changed');
 
