@@ -74,6 +74,48 @@ type ListUsersResponse = {
   pageSize: number;
 };
 
+type ProjectStatus = 'PLANNING' | 'ACTIVE' | 'ON_HOLD' | 'DONE' | 'ARCHIVED';
+
+type ProjectItem = {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  status: ProjectStatus;
+  startDate?: string;
+  endDate?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ListProjectsResponse = {
+  data: ProjectItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type EmployeeStatus = 'ACTIVE' | 'INACTIVE';
+
+type EmployeeItem = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  department?: string;
+  title?: string;
+  status: EmployeeStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ListEmployeesResponse = {
+  data: EmployeeItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 type ModuleStatus = 'NOT_INSTALLED' | 'INSTALLED' | 'ENABLED' | 'DISABLED';
 
 type ModuleItem = {
@@ -502,24 +544,365 @@ function ProfilePage({ user }: { user: AuthUser }) {
 }
 
 function ProjectPage() {
+  const { message } = AntdApp.useApp();
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [rows, setRows] = useState<ProjectItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [keyword, setKeyword] = useState('');
+  const [status, setStatus] = useState<ProjectStatus | undefined>(undefined);
+  const [editing, setEditing] = useState<ProjectItem | null>(null);
+  const [open, setOpen] = useState(false);
+  const [form] = Form.useForm<{
+    name: string;
+    code: string;
+    description?: string;
+    status: ProjectStatus;
+  }>();
+
+  const fetchRows = async () => {
+    setLoading(true);
+    try {
+      const query = buildListQuery(
+        { page, pageSize },
+        { keyword: keyword || undefined, status: status || undefined },
+      );
+      const res = await api<ListProjectsResponse>(`/projects?${query}`, undefined, true);
+      setRows(res.data);
+      setTotal(res.total);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, keyword, status]);
+
+  const openCreate = () => {
+    setEditing(null);
+    form.setFieldsValue({ name: '', code: '', description: '', status: 'PLANNING' });
+    setOpen(true);
+  };
+
+  const openEdit = (record: ProjectItem) => {
+    setEditing(record);
+    form.setFieldsValue({
+      name: record.name,
+      code: record.code,
+      description: record.description,
+      status: record.status,
+    });
+    setOpen(true);
+  };
+
   return (
-    <Card title="项目管理">
-      <Space direction="vertical" size={8}>
-        <Typography.Text>项目管理模块骨架已就位。</Typography.Text>
-        <Typography.Text type="secondary">后续可扩展：项目台账、看板、里程碑、成员分工。</Typography.Text>
-      </Space>
-    </Card>
+    <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card title="项目管理">
+        <Space wrap>
+          <Input.Search
+            placeholder="搜索项目名/编码"
+            allowClear
+            onSearch={(value) => {
+              setPage(1);
+              setKeyword(value.trim());
+            }}
+            style={{ width: 280 }}
+          />
+          <Select
+            allowClear
+            placeholder="项目状态"
+            style={{ width: 180 }}
+            value={status}
+            onChange={(value) => {
+              setPage(1);
+              setStatus(value as ProjectStatus | undefined);
+            }}
+            options={[
+              { label: '规划中', value: 'PLANNING' },
+              { label: '进行中', value: 'ACTIVE' },
+              { label: '暂停', value: 'ON_HOLD' },
+              { label: '完成', value: 'DONE' },
+              { label: '归档', value: 'ARCHIVED' },
+            ]}
+          />
+          <Button type="primary" onClick={openCreate}>新建项目</Button>
+        </Space>
+      </Card>
+
+      <Card>
+        <Table<ProjectItem>
+          rowKey="id"
+          loading={loading}
+          dataSource={rows}
+          columns={[
+            { title: '项目名称', dataIndex: 'name' },
+            { title: '项目编码', dataIndex: 'code' },
+            {
+              title: '状态',
+              dataIndex: 'status',
+              render: (v: ProjectStatus) => <Tag>{v}</Tag>,
+            },
+            { title: '说明', dataIndex: 'description', render: (v?: string) => v || '-' },
+            {
+              title: '操作',
+              render: (_, record) => (
+                <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
+              ),
+            },
+          ]}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            onChange: (next, size) => {
+              setPage(next);
+              setPageSize(size);
+            },
+          }}
+        />
+      </Card>
+
+      <Modal
+        title={editing ? '编辑项目' : '新建项目'}
+        open={open}
+        onCancel={() => setOpen(false)}
+        onOk={async () => {
+          try {
+            const values = await form.validateFields();
+            setSaving(true);
+            if (editing) {
+              await api(`/projects/${editing.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify(values),
+              }, true);
+              message.success('项目已更新');
+            } else {
+              await api('/projects', {
+                method: 'POST',
+                body: JSON.stringify(values),
+              }, true);
+              message.success('项目已创建');
+            }
+            setOpen(false);
+            void fetchRows();
+          } catch (error) {
+            if (error instanceof Error) message.error(parseError(error));
+          } finally {
+            setSaving(false);
+          }
+        }}
+        confirmLoading={saving}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item label="项目名称" name="name" rules={[{ required: true, min: 2 }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="项目编码" name="code" rules={[{ required: true, min: 2 }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="状态" name="status" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: '规划中', value: 'PLANNING' },
+                { label: '进行中', value: 'ACTIVE' },
+                { label: '暂停', value: 'ON_HOLD' },
+                { label: '完成', value: 'DONE' },
+                { label: '归档', value: 'ARCHIVED' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item label="说明" name="description">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Space>
   );
 }
 
 function HrEmployeesPage() {
+  const { message } = AntdApp.useApp();
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [rows, setRows] = useState<EmployeeItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [keyword, setKeyword] = useState('');
+  const [status, setStatus] = useState<EmployeeStatus | undefined>(undefined);
+  const [editing, setEditing] = useState<EmployeeItem | null>(null);
+  const [open, setOpen] = useState(false);
+  const [form] = Form.useForm<{
+    name: string;
+    email: string;
+    phone?: string;
+    department?: string;
+    title?: string;
+    status: EmployeeStatus;
+  }>();
+
+  const fetchRows = async () => {
+    setLoading(true);
+    try {
+      const query = buildListQuery(
+        { page, pageSize },
+        { keyword: keyword || undefined, status: status || undefined },
+      );
+      const res = await api<ListEmployeesResponse>(`/hr/employees?${query}`, undefined, true);
+      setRows(res.data);
+      setTotal(res.total);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, keyword, status]);
+
+  const openCreate = () => {
+    setEditing(null);
+    form.setFieldsValue({ name: '', email: '', phone: '', department: '', title: '', status: 'ACTIVE' });
+    setOpen(true);
+  };
+
+  const openEdit = (record: EmployeeItem) => {
+    setEditing(record);
+    form.setFieldsValue(record);
+    setOpen(true);
+  };
+
   return (
-    <Card title="人员管理">
-      <Space direction="vertical" size={8}>
-        <Typography.Text>人员管理模块骨架已就位。</Typography.Text>
-        <Typography.Text type="secondary">后续可扩展：员工档案、组织架构、岗位与权限映射。</Typography.Text>
-      </Space>
-    </Card>
+    <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card title="人员管理">
+        <Space wrap>
+          <Input.Search
+            placeholder="搜索姓名/邮箱/部门"
+            allowClear
+            onSearch={(value) => {
+              setPage(1);
+              setKeyword(value.trim());
+            }}
+            style={{ width: 280 }}
+          />
+          <Select
+            allowClear
+            placeholder="员工状态"
+            style={{ width: 160 }}
+            value={status}
+            onChange={(value) => {
+              setPage(1);
+              setStatus(value as EmployeeStatus | undefined);
+            }}
+            options={[
+              { label: '在职', value: 'ACTIVE' },
+              { label: '离职', value: 'INACTIVE' },
+            ]}
+          />
+          <Button type="primary" onClick={openCreate}>新建员工</Button>
+        </Space>
+      </Card>
+
+      <Card>
+        <Table<EmployeeItem>
+          rowKey="id"
+          loading={loading}
+          dataSource={rows}
+          columns={[
+            { title: '姓名', dataIndex: 'name' },
+            { title: '邮箱', dataIndex: 'email' },
+            { title: '部门', dataIndex: 'department', render: (v?: string) => v || '-' },
+            { title: '岗位', dataIndex: 'title', render: (v?: string) => v || '-' },
+            { title: '电话', dataIndex: 'phone', render: (v?: string) => v || '-' },
+            { title: '状态', dataIndex: 'status', render: (v: EmployeeStatus) => <Tag>{v}</Tag> },
+            {
+              title: '操作',
+              render: (_, record) => (
+                <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
+              ),
+            },
+          ]}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            onChange: (next, size) => {
+              setPage(next);
+              setPageSize(size);
+            },
+          }}
+        />
+      </Card>
+
+      <Modal
+        title={editing ? '编辑员工' : '新建员工'}
+        open={open}
+        onCancel={() => setOpen(false)}
+        onOk={async () => {
+          try {
+            const values = await form.validateFields();
+            setSaving(true);
+            if (editing) {
+              await api(`/hr/employees/${editing.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify(values),
+              }, true);
+              message.success('员工已更新');
+            } else {
+              await api('/hr/employees', {
+                method: 'POST',
+                body: JSON.stringify(values),
+              }, true);
+              message.success('员工已创建');
+            }
+            setOpen(false);
+            void fetchRows();
+          } catch (error) {
+            if (error instanceof Error) message.error(parseError(error));
+          } finally {
+            setSaving(false);
+          }
+        }}
+        confirmLoading={saving}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item label="姓名" name="name" rules={[{ required: true, min: 2 }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="电话" name="phone">
+            <Input />
+          </Form.Item>
+          <Form.Item label="部门" name="department">
+            <Input />
+          </Form.Item>
+          <Form.Item label="岗位" name="title">
+            <Input />
+          </Form.Item>
+          <Form.Item label="状态" name="status" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: '在职', value: 'ACTIVE' },
+                { label: '离职', value: 'INACTIVE' },
+              ]}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Space>
   );
 }
 
@@ -687,6 +1070,19 @@ function AppShell({
   const menuItems = buildMenuByRole(user.role as AppRole, Array.from(enabledModuleCodes));
   const selectedMenuKey =
     menuItems.find((item) => location.pathname.startsWith(item.path))?.key ?? menuItems[0]?.key;
+
+  useEffect(() => {
+    const isRouteDisabled =
+      (location.pathname.startsWith('/users') && !enabledModuleCodes.has('users')) ||
+      (location.pathname.startsWith('/audit-logs') && !enabledModuleCodes.has('audit')) ||
+      (location.pathname.startsWith('/projects') && !enabledModuleCodes.has('project')) ||
+      (location.pathname.startsWith('/hr') && !enabledModuleCodes.has('hr'));
+
+    if (isRouteDisabled) {
+      message.warning('当前模块已关闭，已为你跳转到仪表盘');
+      navigate('/dashboard', { replace: true });
+    }
+  }, [enabledModuleCodes, location.pathname, message, navigate]);
 
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);

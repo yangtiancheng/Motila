@@ -30,6 +30,19 @@ enum ModuleLifecycleStatus {
   DISABLED
 }
 
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  DONE
+  ARCHIVED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -76,4 +89,28 @@ model ModuleDependency {
   dependsOn     FeatureModule @relation("ModuleDependents", fields: [dependsOnCode], references: [code], onDelete: Cascade)
 
   @@unique([moduleCode, dependsOnCode])
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  code        String        @unique
+  description String?
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Employee {
+  id         String         @id @default(cuid())
+  name       String
+  email      String         @unique
+  phone      String?
+  department String?
+  title      String?
+  status     EmployeeStatus @default(ACTIVE)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
 }
