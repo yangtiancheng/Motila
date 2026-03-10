@@ -37,7 +37,7 @@ export function SchemaQueryBar<TValues extends Record<string, unknown>>({
           onSearch(values as TValues);
         }
       }}
-      style={{ width: '100%' }}
+      style={{ flex: 1 }}
     >
       {fields.map((field) => (
         <Form.Item key={String(field.name)} name={String(field.name)} label={field.label}>

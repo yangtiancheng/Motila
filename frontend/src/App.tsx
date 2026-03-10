@@ -422,7 +422,7 @@ function UsersListPage({
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
       <Card title="用户管理">
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+        <Space wrap>
           <SchemaQueryBar<UserListQueryValues>
             fields={userListQueryFields}
             initialValues={filters}
