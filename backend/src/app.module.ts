@@ -6,11 +6,13 @@ import { HrModule } from './hr/hr.module';
 import { ModulesModule } from './modules/modules.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
+import { RbacModule } from './rbac/rbac.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     PrismaModule,
+    RbacModule,
     AuthModule,
     ModulesModule,
     UsersModule,

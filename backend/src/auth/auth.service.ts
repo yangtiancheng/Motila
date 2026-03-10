@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { RbacService } from '../rbac/rbac.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -15,6 +16,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly rbacService: RbacService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -40,8 +42,17 @@ export class AuthService {
       select: { id: true, username: true, email: true, name: true, role: true },
     });
 
-    const token = await this.signToken(user.id, user.email, user.role);
-    return { token, user };
+    const access = await this.rbacService.buildAccessContext(user.id);
+    const token = await this.signToken(user.id, user.email, user.role, access);
+    return {
+      token,
+      user: {
+        ...user,
+        roles: access.roleCodes,
+        permissions: access.permissions,
+        modules: access.modules,
+      },
+    };
   }
 
   async login(dto: LoginDto) {
@@ -56,7 +67,8 @@ export class AuthService {
       throw new UnauthorizedException('用户名或密码错误');
     }
 
-    const token = await this.signToken(user.id, user.email, user.role);
+    const access = await this.rbacService.buildAccessContext(user.id);
+    const token = await this.signToken(user.id, user.email, user.role, access);
     return {
       token,
       user: {
@@ -65,15 +77,26 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        roles: access.roleCodes,
+        permissions: access.permissions,
+        modules: access.modules,
       },
     };
   }
 
-  private async signToken(userId: string, email: string, role: UserRole) {
+  private async signToken(
+    userId: string,
+    email: string,
+    role: UserRole,
+    access: { roleCodes: string[]; permissions: string[]; modules: string[] },
+  ) {
     return this.jwtService.signAsync({
       sub: userId,
       email,
       role,
+      roles: access.roleCodes,
+      permissions: access.permissions,
+      modules: access.modules,
     });
   }
 }
