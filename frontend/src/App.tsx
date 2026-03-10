@@ -881,7 +881,7 @@ function AppShell({
                   <Route path="/users/:id" element={<UserShowPage />} />
                   <Route path="/users/:id/edit" element={<UserEditPage />} />
                   <Route
-                    path="/modules"
+                    path="/settings/modules"
                     element={
                       <ModulesPage
                         modules={modules}
