@@ -782,6 +782,21 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
               <Input.TextArea rows={3} placeholder="也可粘贴 data:image/...;base64,..." />
             </Space>
           </Form.Item>
+          <Form.Item shouldUpdate noStyle>
+            {() => {
+              const image = form.getFieldValue('logoImage') || form.getFieldValue('logoUrl');
+              if (!image) return null;
+              return (
+                <Form.Item label="Logo预览">
+                  <img
+                    src={image}
+                    alt="logo-preview"
+                    style={{ maxWidth: 220, maxHeight: 72, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 6, padding: 6, background: '#fff' }}
+                  />
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
           <Form.Item label="Footer文字" name="footerText">
             <Input />
           </Form.Item>
