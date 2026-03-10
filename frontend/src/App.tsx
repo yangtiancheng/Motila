@@ -1749,7 +1749,17 @@ function AppShell({
     <ConfigProvider theme={activeTheme}>
       <Layout className={`app-layout skin-${effectiveSkin}`}>
         <Layout.Sider theme="light" width={220} className="app-sider">
-          <div className="logo">Motila</div>
+          <div
+            className="logo"
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate('/dashboard')}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') navigate('/dashboard');
+            }}
+          >
+            Motila
+          </div>
           <Menu
             mode="inline"
             selectedKeys={selectedMenuKey ? [selectedMenuKey] : []}
