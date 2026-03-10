@@ -8,6 +8,7 @@ import {
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SYSTEM_PERMISSIONS, SYSTEM_ROLE_CODES } from './rbac.constants';
+import { CreateRoleDto, UpdateRoleDto } from './dto/rbac-manage.dto';
 
 export type UserAccessContext = {
   userId: string;
@@ -44,6 +45,65 @@ export class RbacService implements OnModuleInit {
       permissions: role.permissions.map((item) => item.permission.code),
       modules: role.grants.map((item) => item.moduleCode),
     }));
+  }
+
+  async createRole(dto: CreateRoleDto) {
+    const code = dto.code.trim();
+    const name = dto.name.trim();
+
+    if (!/^[A-Z][A-Z0-9_]{1,30}$/.test(code)) {
+      throw new BadRequestException('角色编码仅支持大写字母/数字/下划线，且以字母开头');
+    }
+
+    const exist = await this.prisma.role.findUnique({ where: { code } });
+    if (exist) throw new BadRequestException('角色编码已存在');
+
+    await this.prisma.role.create({
+      data: {
+        code,
+        name,
+        description: dto.description?.trim() || null,
+        isSystem: false,
+      },
+    });
+
+    return this.listRoles();
+  }
+
+  async updateRole(roleCode: string, dto: UpdateRoleDto) {
+    const role = await this.prisma.role.findUnique({ where: { code: roleCode } });
+    if (!role) throw new NotFoundException('角色不存在');
+    if (role.isSystem) throw new ForbiddenException('系统角色不允许修改');
+
+    const name = dto.name?.trim();
+    const description = dto.description?.trim();
+
+    await this.prisma.role.update({
+      where: { code: roleCode },
+      data: {
+        name: name ?? role.name,
+        description: description ?? role.description,
+      },
+    });
+
+    return this.listRoles();
+  }
+
+  async deleteRole(roleCode: string) {
+    const role = await this.prisma.role.findUnique({ where: { code: roleCode } });
+    if (!role) throw new NotFoundException('角色不存在');
+    if (role.isSystem) throw new ForbiddenException('系统角色不允许删除');
+
+    const userCount = await this.prisma.userRoleMap.count({ where: { roleId: role.id } });
+    if (userCount > 0) throw new BadRequestException('该角色已分配用户，无法删除');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({ where: { roleId: role.id } });
+      await tx.roleModuleGrant.deleteMany({ where: { roleId: role.id } });
+      await tx.role.delete({ where: { id: role.id } });
+    });
+
+    return this.listRoles();
   }
 
   async listPermissions() {

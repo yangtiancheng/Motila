@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { RequireModule, RequirePermission } from './rbac.decorator';
 import { RbacGuard } from './rbac.guard';
 import {
+  CreateRoleDto,
+  UpdateRoleDto,
   UpdateRoleModulesDto,
   UpdateRolePermissionsDto,
   UpdateUserRolesDto,
@@ -19,6 +21,24 @@ export class RbacController {
   @RequirePermission('rbac.read')
   listRoles() {
     return this.rbacService.listRoles();
+  }
+
+  @Post('roles')
+  @RequirePermission('rbac.update')
+  createRole(@Body() dto: CreateRoleDto) {
+    return this.rbacService.createRole(dto);
+  }
+
+  @Put('roles/:roleCode')
+  @RequirePermission('rbac.update')
+  updateRole(@Param('roleCode') roleCode: string, @Body() dto: UpdateRoleDto) {
+    return this.rbacService.updateRole(roleCode, dto);
+  }
+
+  @Delete('roles/:roleCode')
+  @RequirePermission('rbac.update')
+  deleteRole(@Param('roleCode') roleCode: string) {
+    return this.rbacService.deleteRole(roleCode);
   }
 
   @Get('permissions')

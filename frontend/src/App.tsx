@@ -149,6 +149,12 @@ type RoleSummary = {
   modules: string[];
 };
 
+type RoleFormValues = {
+  code: string;
+  name: string;
+  description?: string;
+};
+
 type PermissionItem = {
   code: string;
   name: string;
@@ -643,9 +649,13 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
   const [loading, setLoading] = useState(false);
   const [savingPermissions, setSavingPermissions] = useState(false);
   const [savingModules, setSavingModules] = useState(false);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [roleModalLoading, setRoleModalLoading] = useState(false);
+  const [editingRole, setEditingRole] = useState<RoleSummary | null>(null);
   const [selectedRoleCode, setSelectedRoleCode] = useState<string>('');
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [roleForm] = Form.useForm<RoleFormValues>();
 
   const refreshAll = async () => {
     setLoading(true);
@@ -674,7 +684,7 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
 
   useEffect(() => {
     void refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks-exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -684,6 +694,64 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
     setSelectedPermissions(role.permissions ?? []);
     setSelectedModules(role.modules ?? []);
   }, [roles, selectedRoleCode]);
+
+  const openCreateRole = () => {
+    setEditingRole(null);
+    roleForm.resetFields();
+    setRoleModalOpen(true);
+  };
+
+  const openEditRole = (role: RoleSummary) => {
+    setEditingRole(role);
+    roleForm.setFieldsValue({
+      code: role.code,
+      name: role.name,
+      description: role.description ?? '',
+    });
+    setRoleModalOpen(true);
+  };
+
+  const submitRoleForm = async () => {
+    try {
+      const values = await roleForm.validateFields();
+      setRoleModalLoading(true);
+
+      if (editingRole) {
+        await api(`/rbac/roles/${editingRole.code}`, {
+          method: 'PUT',
+          body: JSON.stringify({ name: values.name, description: values.description }),
+        }, true);
+        message.success('角色已更新');
+      } else {
+        await api('/rbac/roles', {
+          method: 'POST',
+          body: JSON.stringify(values),
+        }, true);
+        message.success('角色已创建');
+      }
+
+      setRoleModalOpen(false);
+      await refreshAll();
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('validate')) return;
+      message.error(parseError(error));
+    } finally {
+      setRoleModalLoading(false);
+    }
+  };
+
+  const deleteRole = async (role: RoleSummary) => {
+    try {
+      await api(`/rbac/roles/${role.code}`, { method: 'DELETE' }, true);
+      message.success('角色已删除');
+      if (selectedRoleCode === role.code) {
+        setSelectedRoleCode('');
+      }
+      await refreshAll();
+    } catch (error) {
+      message.error(parseError(error));
+    }
+  };
 
   const groupedPermissions = useMemo(() => {
     const map = new Map<string, PermissionItem[]>();
@@ -731,62 +799,136 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
-      <Card title="角色选择" loading={loading}>
-        <Space wrap>
-          <Select
-            value={selectedRoleCode}
-            onChange={(value) => setSelectedRoleCode(value)}
-            style={{ minWidth: 240 }}
-            options={roles.map((role) => ({
-              value: role.code,
-              label: `${role.name} (${role.code})`,
-            }))}
-          />
-          <Button onClick={() => void refreshAll()}>刷新</Button>
-        </Space>
+      <Card
+        title="角色管理"
+        loading={loading}
+        extra={
+          <Button type="primary" onClick={openCreateRole} disabled={!canUpdate}>
+            新建角色
+          </Button>
+        }
+      >
+        <Table<RoleSummary>
+          rowKey="code"
+          dataSource={roles}
+          pagination={false}
+          columns={[
+            { title: '角色编码', dataIndex: 'code' },
+            { title: '角色名称', dataIndex: 'name' },
+            { title: '描述', dataIndex: 'description', render: (value?: string) => value || '-' },
+            { title: '用户数', dataIndex: 'userCount' },
+            { title: '系统内置', dataIndex: 'isSystem', render: (value: boolean) => (value ? '是' : '否') },
+            {
+              title: '操作',
+              render: (_, role) => (
+                <Space>
+                  <Button size="small" onClick={() => setSelectedRoleCode(role.code)}>
+                    选择
+                  </Button>
+                  <Button size="small" onClick={() => openEditRole(role)} disabled={!canUpdate || role.isSystem}>
+                    编辑
+                  </Button>
+                  <Popconfirm
+                    title="确认删除该角色？"
+                    okText="删除"
+                    cancelText="取消"
+                    disabled={!canUpdate || role.isSystem}
+                    onConfirm={() => void deleteRole(role)}
+                  >
+                    <Button size="small" danger disabled={!canUpdate || role.isSystem}>
+                      删除
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <Card
         title="权限点"
         extra={
-          <Button type="primary" onClick={() => void handleSavePermissions()} disabled={!canUpdate} loading={savingPermissions}>
+          <Button type="primary" onClick={() => void handleSavePermissions()} disabled={!canUpdate || !selectedRoleCode} loading={savingPermissions}>
             保存权限点
           </Button>
         }
       >
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
-          {groupedPermissions.map(([moduleCode, perms]) => (
-            <Card key={moduleCode} size="small" title={`模块：${moduleCode}`}>
-              <Checkbox.Group
-                value={selectedPermissions}
-                onChange={(values) => setSelectedPermissions(values as string[])}
-                options={perms.map((perm) => ({
-                  label: `${perm.name} (${perm.code})`,
-                  value: perm.code,
-                }))}
-              />
-            </Card>
-          ))}
-        </Space>
+        {!selectedRoleCode ? (
+          <Typography.Text type="secondary">请先选择角色</Typography.Text>
+        ) : (
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            {groupedPermissions.map(([moduleCode, perms]) => (
+              <Card key={moduleCode} size="small" title={`模块：${moduleCode}`}>
+                <Checkbox.Group
+                  value={selectedPermissions}
+                  onChange={(values) => setSelectedPermissions(values as string[])}
+                  options={perms.map((perm) => ({
+                    label: `${perm.name} (${perm.code})`,
+                    value: perm.code,
+                  }))}
+                />
+              </Card>
+            ))}
+          </Space>
+        )}
       </Card>
 
       <Card
         title="模块授权"
         extra={
-          <Button type="primary" onClick={() => void handleSaveModules()} disabled={!canUpdate} loading={savingModules}>
+          <Button type="primary" onClick={() => void handleSaveModules()} disabled={!canUpdate || !selectedRoleCode} loading={savingModules}>
             保存模块授权
           </Button>
         }
       >
-        <Checkbox.Group
-          value={selectedModules}
-          onChange={(values) => setSelectedModules(values as string[])}
-          options={modules.map((module) => ({
-            label: `${module.name} (${module.code})`,
-            value: module.code,
-          }))}
-        />
+        {!selectedRoleCode ? (
+          <Typography.Text type="secondary">请先选择角色</Typography.Text>
+        ) : (
+          <Checkbox.Group
+            value={selectedModules}
+            onChange={(values) => setSelectedModules(values as string[])}
+            options={modules.map((module) => ({
+              label: `${module.name} (${module.code})`,
+              value: module.code,
+            }))}
+          />
+        )}
       </Card>
+
+      <Modal
+        title={editingRole ? '编辑角色' : '新建角色'}
+        open={roleModalOpen}
+        onCancel={() => setRoleModalOpen(false)}
+        onOk={() => void submitRoleForm()}
+        okText={editingRole ? '保存' : '创建'}
+        confirmLoading={roleModalLoading}
+        okButtonProps={{ disabled: !canUpdate }}
+        cancelText="取消"
+      >
+        <Form form={roleForm} layout="vertical">
+          <Form.Item
+            label="角色编码"
+            name="code"
+            rules={[
+              { required: true, message: '请输入角色编码' },
+              { pattern: /^[A-Z][A-Z0-9_]{1,30}$/, message: '仅支持大写字母/数字/下划线，且以字母开头' },
+            ]}
+          >
+            <Input placeholder="例如：SALES_MANAGER" disabled={!!editingRole} />
+          </Form.Item>
+          <Form.Item
+            label="角色名称"
+            name="name"
+            rules={[{ required: true, message: '请输入角色名称' }]}
+          >
+            <Input placeholder="例如：销售经理" />
+          </Form.Item>
+          <Form.Item label="描述" name="description">
+            <Input.TextArea rows={3} placeholder="可选" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Space>
   );
 }
