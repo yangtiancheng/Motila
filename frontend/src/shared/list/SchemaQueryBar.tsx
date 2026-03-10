@@ -8,12 +8,16 @@ export function SchemaQueryBar<TValues extends Record<string, unknown>>({
   onSearch,
   onReset,
   submitText = '搜索',
+  showActions = true,
+  autoSubmitOnChange = false,
 }: {
   fields: QueryField<TValues>[];
   initialValues: TValues;
   onSearch: (values: TValues) => void;
   onReset: (values: TValues) => void;
   submitText?: string;
+  showActions?: boolean;
+  autoSubmitOnChange?: boolean;
 }) {
   const [form] = Form.useForm<TValues>();
 
@@ -26,38 +30,57 @@ export function SchemaQueryBar<TValues extends Record<string, unknown>>({
       form={form}
       layout="inline"
       onFinish={(values) => onSearch(values)}
+      onValuesChange={(changed, values) => {
+        if (!autoSubmitOnChange) return;
+        const hasSelectChange = Object.values(changed).some((value) => typeof value !== 'string');
+        if (hasSelectChange) {
+          onSearch(values as TValues);
+        }
+      }}
       style={{ width: '100%' }}
     >
       {fields.map((field) => (
         <Form.Item key={String(field.name)} name={String(field.name)} label={field.label}>
           {field.type === 'input' ? (
-            <Input placeholder={field.placeholder} style={{ width: field.width ?? 220 }} allowClear />
+            <Input
+              placeholder={field.placeholder}
+              style={{ width: field.width ?? 220 }}
+              allowClear
+              onPressEnter={() => {
+                form.submit();
+              }}
+            />
           ) : (
             <Select
               allowClear
               placeholder={field.placeholder}
               options={field.options}
               style={{ width: field.width ?? 160 }}
+              onChange={() => {
+                if (autoSubmitOnChange) form.submit();
+              }}
             />
           )}
         </Form.Item>
       ))}
 
-      <Space>
-        <Button type="primary" htmlType="submit">
-          {submitText}
-        </Button>
-        <Button
-          onClick={() => {
-            form.resetFields();
-            const next = { ...initialValues };
-            form.setFieldsValue(next as Parameters<typeof form.setFieldsValue>[0]);
-            onReset(next);
-          }}
-        >
-          重置
-        </Button>
-      </Space>
+      {showActions ? (
+        <Space>
+          <Button type="primary" htmlType="submit">
+            {submitText}
+          </Button>
+          <Button
+            onClick={() => {
+              form.resetFields();
+              const next = { ...initialValues };
+              form.setFieldsValue(next as Parameters<typeof form.setFieldsValue>[0]);
+              onReset(next);
+            }}
+          >
+            重置
+          </Button>
+        </Space>
+      ) : null}
     </Form>
   );
 }

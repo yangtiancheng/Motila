@@ -432,6 +432,8 @@ function UsersListPage({
             onReset={(values) => {
               applyFilters(values);
             }}
+            showActions={false}
+            autoSubmitOnChange
           />
           <Button type="primary" onClick={() => navigate('/users/create')} disabled={!canCreate}>新建用户</Button>
         </Space>
