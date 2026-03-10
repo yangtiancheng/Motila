@@ -1,4 +1,4 @@
-import { Button, Form, Input, Select } from 'antd';
+import { Button, Form, Input, Select, Space, Upload } from 'antd';
 import { useWatch } from 'antd/es/form/Form';
 import type { FormInstance, Rule } from 'antd/es/form';
 import type { SchemaField } from './schema.types';
@@ -17,6 +17,15 @@ export function SchemaForm<TValues extends Record<string, unknown>>({
   onFinish: (values: TValues) => Promise<void>;
 }) {
   const values = (useWatch([], form) as Partial<TValues>) ?? {};
+
+  const uploadBase64 = (name: keyof TValues, file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      form.setFieldValue(name as any, String(reader.result ?? ''));
+    };
+    reader.readAsDataURL(file);
+    return false;
+  };
 
   return (
     <Form form={form} layout="vertical" onFinish={onFinish}>
@@ -43,11 +52,53 @@ export function SchemaForm<TValues extends Record<string, unknown>>({
           const disabled = field.disabledWhen?.(values) ?? false;
 
           return (
-            <Form.Item key={String(field.name)} label={field.label} name={String(field.name)} rules={rules}>
-              {field.type === 'input' ? <Input placeholder={field.placeholder} disabled={disabled} /> : null}
-              {field.type === 'password' ? <Input.Password placeholder={field.placeholder} disabled={disabled} /> : null}
+            <Form.Item key={String(field.name)} label={field.label}>
+              {field.type === 'input' ? (
+                <Form.Item name={String(field.name)} rules={rules} noStyle>
+                  <Input placeholder={field.placeholder} disabled={disabled} />
+                </Form.Item>
+              ) : null}
+              {field.type === 'password' ? (
+                <Form.Item name={String(field.name)} rules={rules} noStyle>
+                  <Input.Password placeholder={field.placeholder} disabled={disabled} />
+                </Form.Item>
+              ) : null}
               {field.type === 'select' ? (
-                <Select options={field.options} placeholder={field.placeholder} disabled={disabled} />
+                <Form.Item name={String(field.name)} rules={rules} noStyle>
+                  <Select options={field.options} placeholder={field.placeholder} disabled={disabled} />
+                </Form.Item>
+              ) : null}
+              {field.type === 'upload' ? (
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Upload
+                    beforeUpload={(file) => uploadBase64(field.name, file as File)}
+                    showUploadList={false}
+                    accept={field.accept ?? 'image/png,image/jpeg,image/webp'}
+                    disabled={disabled}
+                  >
+                    <Button disabled={disabled}>上传图片</Button>
+                  </Upload>
+                  <Form.Item name={String(field.name)} rules={rules} noStyle>
+                    <Input.TextArea
+                      rows={3}
+                      placeholder={field.placeholder ?? '也可粘贴 data:image/...;base64,...'}
+                      disabled={disabled}
+                    />
+                  </Form.Item>
+                  {values[field.name] ? (
+                    <img
+                      src={String(values[field.name])}
+                      alt={`${String(field.name)}-preview`}
+                      style={{ maxWidth: 160, maxHeight: 160, objectFit: 'cover', border: '1px solid #e2e8f0', borderRadius: 8, padding: 4, background: '#fff' }}
+                    />
+                  ) : field.previewFallbackName && values[field.previewFallbackName] ? (
+                    <img
+                      src={String(values[field.previewFallbackName])}
+                      alt={`${String(field.previewFallbackName)}-preview`}
+                      style={{ maxWidth: 160, maxHeight: 160, objectFit: 'cover', border: '1px solid #e2e8f0', borderRadius: 8, padding: 4, background: '#fff' }}
+                    />
+                  ) : null}
+                </Space>
               ) : null}
             </Form.Item>
           );

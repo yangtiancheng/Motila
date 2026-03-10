@@ -4,6 +4,7 @@ export type UserFormValues = {
   username: string;
   email: string;
   name: string;
+  avatarImage?: string;
   avatarUrl?: string;
   password?: string;
   role: 'ADMIN' | 'USER';
@@ -33,6 +34,15 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
       required: true,
       min: 2,
       message: '昵称至少2位',
+    },
+    {
+      name: 'avatarImage',
+      label: '头像上传',
+      type: 'upload',
+      required: false,
+      placeholder: '也可粘贴 data:image/...;base64,...',
+      accept: 'image/png,image/jpeg,image/webp',
+      previewFallbackName: 'avatarUrl',
     },
     {
       name: 'avatarUrl',
@@ -71,6 +81,7 @@ export function normalizeUserFormValues(values: UserFormValues): UserFormValues 
       username: input.username.trim(),
       email: input.email.trim(),
       name: input.name.trim(),
+      avatarImage: input.avatarImage?.trim() ? input.avatarImage.trim() : undefined,
       avatarUrl: input.avatarUrl?.trim() ? input.avatarUrl.trim() : undefined,
     }),
     (input) => {

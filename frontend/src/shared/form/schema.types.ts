@@ -1,4 +1,4 @@
-export type SchemaFieldType = 'input' | 'password' | 'select';
+export type SchemaFieldType = 'input' | 'password' | 'select' | 'upload';
 
 export type SchemaOption = {
   label: string;
@@ -14,6 +14,8 @@ export type SchemaField<TValues extends Record<string, unknown>> = {
   message?: string;
   placeholder?: string;
   options?: SchemaOption[];
+  accept?: string;
+  previewFallbackName?: keyof TValues;
   visibleWhen?: (values: Partial<TValues>) => boolean;
   disabledWhen?: (values: Partial<TValues>) => boolean;
 };

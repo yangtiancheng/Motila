@@ -38,6 +38,7 @@ export class AuthController {
       username: profile.username,
       name: profile.name,
       avatarUrl: profile.avatarUrl,
+      avatarImage: profile.avatarImage,
       email: profile.email,
       role: profile.role,
       roles: access.roleCodes,

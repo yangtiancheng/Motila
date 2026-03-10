@@ -18,6 +18,10 @@ export class CreateUserDto {
   @IsUrl()
   avatarUrl?: string;
 
+  @IsOptional()
+  @IsString()
+  avatarImage?: string;
+
   @IsString()
   @MinLength(1)
   password!: string;

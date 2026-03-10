@@ -58,6 +58,7 @@ type AuthUser = {
   email: string;
   name?: string;
   avatarUrl?: string;
+  avatarImage?: string;
   role: UserRole;
   roles: string[];
   permissions: string[];
@@ -274,6 +275,7 @@ function UserFormCard({
     username: string;
     email: string;
     name: string;
+    avatarImage: string;
     avatarUrl: string;
     password: string;
     role: UserRole;
@@ -284,6 +286,7 @@ function UserFormCard({
     username: string;
     email: string;
     name: string;
+    avatarImage?: string;
     avatarUrl?: string;
     password?: string;
     role: UserRole;
@@ -293,6 +296,7 @@ function UserFormCard({
     username: string;
     email: string;
     name: string;
+    avatarImage?: string;
     avatarUrl?: string;
     password?: string;
     role: UserRole;
@@ -312,7 +316,15 @@ function UserFormCard({
         fields={getUserFormSchema(title.includes('编辑'))}
         loading={loading}
         submitText={submitText}
-        onFinish={async (values: { username: string; email: string; name: string; password?: string; role: UserRole }) => {
+        onFinish={async (values: {
+          username: string;
+          email: string;
+          name: string;
+          avatarImage?: string;
+          avatarUrl?: string;
+          password?: string;
+          role: UserRole;
+        }) => {
           await onSubmit(values);
         }}
       />
@@ -428,7 +440,7 @@ function UsersListPage({
       key: 'avatarUrl',
       width: 72,
       render: (_: unknown, record: UserItem) => (
-        <Avatar src={record.avatarUrl}>{(record.name ?? record.email)?.slice(0, 1)}</Avatar>
+        <Avatar src={record.avatarImage || record.avatarUrl}>{(record.name ?? record.email)?.slice(0, 1)}</Avatar>
       ),
     },
     { title: '昵称', dataIndex: 'name', key: 'name' },
@@ -596,12 +608,26 @@ function UserEditPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(false);
-  const [initial, setInitial] = useState<Partial<{ email: string; name: string; avatarUrl?: string; role: UserRole }>>({});
+  const [initial, setInitial] = useState<Partial<{
+    email: string;
+    name: string;
+    avatarImage?: string;
+    avatarUrl?: string;
+    role: UserRole;
+  }>>({});
 
   useEffect(() => {
     if (!id) return;
     api<UserItem>(`/users/${id}`, undefined, true)
-      .then((res) => setInitial({ email: res.email, name: res.name, avatarUrl: res.avatarUrl, role: res.role }))
+      .then((res) =>
+        setInitial({
+          email: res.email,
+          name: res.name,
+          avatarImage: res.avatarImage,
+          avatarUrl: res.avatarUrl,
+          role: res.role,
+        }),
+      )
       .catch((error) => message.error(parseError(error)));
   }, [id, message]);
 
@@ -646,7 +672,7 @@ function UserShowPage() {
   return (
     <Card title="用户详情">
       <Space direction="vertical" size={8}>
-        <Avatar src={data.avatarUrl} size={64}>{(data.name ?? data.email).slice(0, 1)}</Avatar>
+        <Avatar src={data.avatarImage || data.avatarUrl} size={64}>{(data.name ?? data.email).slice(0, 1)}</Avatar>
         <Typography.Text>昵称：{data.name}</Typography.Text>
         <Typography.Text>邮箱：{data.email}</Typography.Text>
         <Typography.Text>角色：{data.role}</Typography.Text>
@@ -1298,7 +1324,7 @@ function ProfilePage({ user }: { user: AuthUser }) {
   return (
     <Card title="个人信息">
       <Space direction="vertical" size={8}>
-        <Avatar src={user.avatarUrl} size={64}>{(user.name ?? user.email).slice(0, 1)}</Avatar>
+        <Avatar src={user.avatarImage || user.avatarUrl} size={64}>{(user.name ?? user.email).slice(0, 1)}</Avatar>
         <Typography.Text>昵称：{user.name ?? '-'}</Typography.Text>
         <Typography.Text>用户名：{user.username ?? '-'}</Typography.Text>
         <Typography.Text>邮箱：{user.email}</Typography.Text>
@@ -2137,7 +2163,7 @@ function AppShell({
               trigger={['click']}
             >
               <div className="profile-summary" role="button" tabIndex={0}>
-                <Avatar src={user.avatarUrl} size={34}>
+                <Avatar src={user.avatarImage || user.avatarUrl} size={34}>
                   {(user.name ?? user.email).slice(0, 1)}
                 </Avatar>
                 <div className="profile-summary-text">
@@ -2322,6 +2348,7 @@ function App() {
           username: me.username ?? user.username,
           name: me.name ?? user.name,
           avatarUrl: me.avatarUrl ?? user.avatarUrl,
+          avatarImage: me.avatarImage ?? user.avatarImage,
           roles: me.roles ?? user.roles ?? [],
           permissions: me.permissions ?? user.permissions ?? [],
           modules: me.modules ?? user.modules ?? ['core'],
@@ -2366,6 +2393,7 @@ function App() {
         username: me.username ?? data.user.username,
         name: me.name ?? data.user.name,
         avatarUrl: me.avatarUrl ?? data.user.avatarUrl,
+        avatarImage: me.avatarImage ?? data.user.avatarImage,
         roles: me.roles ?? data.user.roles ?? [],
         permissions: me.permissions ?? data.user.permissions ?? [],
         modules: me.modules ?? data.user.modules ?? ['core'],

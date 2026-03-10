@@ -39,7 +39,7 @@ export class AuthService {
         passwordHash,
         role: UserRole.USER,
       },
-      select: { id: true, username: true, email: true, name: true, avatarUrl: true, role: true },
+      select: { id: true, username: true, email: true, name: true, avatarUrl: true, avatarImage: true, role: true },
     });
 
     const access = await this.rbacService.buildAccessContext(user.id);
@@ -77,6 +77,7 @@ export class AuthService {
         email: user.email,
         name: user.name,
         avatarUrl: user.avatarUrl,
+        avatarImage: user.avatarImage,
         role: user.role,
         roles: access.roleCodes,
         permissions: access.permissions,
@@ -93,6 +94,7 @@ export class AuthService {
         username: true,
         name: true,
         avatarUrl: true,
+        avatarImage: true,
         email: true,
         role: true,
       },

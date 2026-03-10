@@ -8,7 +8,8 @@
 - Logo 展示优先级调整：`logoImage` > `logoUrl` > 默认文案
 - 修复系统配置创建时 `logoUrl` 为空触发 URL 校验报错问题
 
-- 菜单改为配置化父子绑定（parentKey）与排序（sortOrder）
+- 用户头像支持上传图片（base64）与预览，展示优先级：avatarImage > avatarUrl
+- 修复系统配置 logoImage 未持久化导致左上角 Logo 不显示的问题
 - 顶部用户区域改为“头像 + 昵称 + 角色”展示（非按钮样式）
 - 用户管理新增头像字段（avatarUrl），列表与详情页展示
 

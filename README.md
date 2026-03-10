@@ -23,9 +23,10 @@
 ### 2.2 用户管理
 - 用户列表、新建、编辑、删除
 - 管理员安全策略（禁止误删/误降权）
-- 用户头像字段 `avatarUrl`
-  - 新建/编辑支持填写头像地址
-  - 列表/详情/个人信息页展示头像（无头像时首字母占位）
+- 用户头像：
+  - 字段：`avatarImage`（上传/base64）、`avatarUrl`
+  - 支持上传并预览
+  - 展示优先级：`avatarImage` > `avatarUrl`
 
 ### 2.3 系统配置（配置 -> 系统配置）
 - 配置字段：`name`、`title`、`logoUrl`、`logoImage`、`footerText`、`isActive`
