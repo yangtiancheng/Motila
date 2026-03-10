@@ -224,6 +224,31 @@ async function api<T>(path: string, init?: RequestInit, withAuth = false): Promi
   }
 }
 
+function renderFooterContent(text: string): React.ReactNode {
+  const regex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+    nodes.push(
+      <a key={`${match[2]}-${match.index}`} href={match[2]} target="_blank" rel="noopener noreferrer">
+        {match[1]}
+      </a>,
+    );
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : text;
+}
+
 function DashboardPage({ user }: { user: AuthUser }) {
   return (
     <Card>
@@ -797,7 +822,7 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
               );
             }}
           </Form.Item>
-          <Form.Item label="Footer文字" name="footerText">
+          <Form.Item label="Footer文字" name="footerText" extra="支持 Markdown 链接格式：[文本](https://example.com)">
             <Input />
           </Form.Item>
           <Form.Item label="有效" name="isActive" valuePropName="checked">
@@ -2165,7 +2190,7 @@ function AppShell({
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout.Content>
-          <Layout.Footer className="app-footer">{footerText}</Layout.Footer>
+          <Layout.Footer className="app-footer">{renderFooterContent(footerText)}</Layout.Footer>
         </Layout>
 
         <Modal

@@ -350,3 +350,8 @@ body {
   background: transparent;
   font-size: 12px;
 }
+
+.app-footer a {
+  color: inherit;
+  text-decoration: underline;
+}
