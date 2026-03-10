@@ -65,8 +65,24 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
 
+    const userIds = data.map((item) => item.id);
+    const roleMaps = await this.prisma.userRoleMap.findMany({
+      where: { userId: { in: userIds } },
+      include: { role: true },
+    });
+
+    const accessByUserId = new Map<string, { roles: string[] }>();
+    for (const map of roleMaps) {
+      const entry = accessByUserId.get(map.userId) ?? { roles: [] };
+      entry.roles.push(map.role.code);
+      accessByUserId.set(map.userId, entry);
+    }
+
     return {
-      data,
+      data: data.map((item) => ({
+        ...item,
+        roles: accessByUserId.get(item.id)?.roles ?? [],
+      })),
       total,
       page,
       pageSize,

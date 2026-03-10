@@ -3,6 +3,7 @@ import {
   Breadcrumb,
   Button,
   Card,
+  Checkbox,
   ColorPicker,
   ConfigProvider,
   Dropdown,
@@ -63,6 +64,7 @@ type AuthUser = {
 type UserItem = AuthUser & {
   createdAt: string;
   updatedAt: string;
+  roles?: string[];
 };
 
 type AuthResponse = {
@@ -119,6 +121,10 @@ type ListEmployeesResponse = {
   pageSize: number;
 };
 
+type ListRolesResponse = RoleSummary[];
+
+type ListPermissionsResponse = PermissionItem[];
+
 type ModuleStatus = 'NOT_INSTALLED' | 'INSTALLED' | 'ENABLED' | 'DISABLED';
 
 type ModuleItem = {
@@ -130,6 +136,23 @@ type ModuleItem = {
   sortOrder: number;
   dependencies: Array<{ dependsOnCode: string }>;
   dependents: Array<{ moduleCode: string }>;
+};
+
+type RoleSummary = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  isSystem: boolean;
+  userCount: number;
+  permissions: string[];
+  modules: string[];
+};
+
+type PermissionItem = {
+  code: string;
+  name: string;
+  moduleCode: string;
 };
 
 function parseError(error: unknown): string {
@@ -219,7 +242,23 @@ function UserFormCard({
   );
 }
 
-function UsersListPage({ currentUser, onChanged }: { currentUser: AuthUser; onChanged: () => void }) {
+function UsersListPage({
+  currentUser,
+  onChanged,
+  canCreate,
+  canUpdate,
+  canDelete,
+  canAssignRoles,
+  canReadRoles,
+}: {
+  currentUser: AuthUser;
+  onChanged: () => void;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canAssignRoles: boolean;
+  canReadRoles: boolean;
+}) {
   const { message } = AntdApp.useApp();
   const navigate = useNavigate();
 
@@ -229,6 +268,13 @@ function UsersListPage({ currentUser, onChanged }: { currentUser: AuthUser; onCh
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [rows, setRows] = useState<UserItem[]>([]);
+
+  const [roleOptions, setRoleOptions] = useState<RoleSummary[]>([]);
+  const [roleLoading, setRoleLoading] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
 
   async function fetchRows() {
     setLoading(true);
@@ -251,6 +297,47 @@ function UsersListPage({ currentUser, onChanged }: { currentUser: AuthUser; onCh
     }
   }
 
+  const fetchRoles = async () => {
+    if (!canReadRoles) return;
+    setRoleLoading(true);
+    try {
+      const data = await api<ListRolesResponse>('/rbac/roles', undefined, true);
+      setRoleOptions(data);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setRoleLoading(false);
+    }
+  };
+
+  const openAssignRoles = async (record: UserItem) => {
+    if (!canAssignRoles) return;
+    setSelectedUser(record);
+    setSelectedRoles(record.roles ?? []);
+    setAssignOpen(true);
+    await fetchRoles();
+  };
+
+  const submitAssignRoles = async () => {
+    if (!selectedUser) return;
+    setAssigning(true);
+    try {
+      await api(`/rbac/users/${selectedUser.id}/roles`, {
+        method: 'PUT',
+        body: JSON.stringify({ roleCodes: selectedRoles }),
+      }, true);
+      message.success('角色分配已更新');
+      setAssignOpen(false);
+      setSelectedUser(null);
+      void fetchRows();
+      onChanged();
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   useEffect(() => {
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,7 +350,18 @@ function UsersListPage({ currentUser, onChanged }: { currentUser: AuthUser; onCh
       title: '角色',
       dataIndex: 'role',
       key: 'role',
-      render: (value: UserRole) => (value === 'ADMIN' ? <Tag color="gold">ADMIN</Tag> : <Tag>USER</Tag>),
+      render: (_: UserRole, record: UserItem) => {
+        const tags = record.roles && record.roles.length ? record.roles : [record.role];
+        return (
+          <Space size={4} wrap>
+            {tags.map((role) => (
+              <Tag key={role} color={role === 'SUPER_ADMIN' ? 'gold' : 'blue'}>
+                {role}
+              </Tag>
+            ))}
+          </Space>
+        );
+      },
     },
     {
       title: '创建时间',
@@ -282,34 +380,17 @@ function UsersListPage({ currentUser, onChanged }: { currentUser: AuthUser; onCh
             <Button size="small" onClick={() => navigate(`/users/${record.id}`)}>
               详情
             </Button>
-            <Button size="small" onClick={() => navigate(`/users/${record.id}/edit`)}>
+            <Button size="small" onClick={() => navigate(`/users/${record.id}/edit`)} disabled={!canUpdate}>
               编辑
             </Button>
-            <Button
-              size="small"
-              disabled={disableSelf}
-              onClick={async () => {
-                try {
-                  const nextRole: UserRole = record.role === 'ADMIN' ? 'USER' : 'ADMIN';
-                  await api(`/users/${record.id}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ role: nextRole }),
-                  }, true);
-                  message.success(`角色已更新为 ${nextRole}`);
-                  fetchRows();
-                  onChanged();
-                } catch (error) {
-                  message.error(parseError(error));
-                }
-              }}
-            >
-              切换角色
+            <Button size="small" onClick={() => void openAssignRoles(record)} disabled={!canAssignRoles}>
+              分配角色
             </Button>
             <Popconfirm
               title="确认删除该用户？"
               okText="删除"
               cancelText="取消"
-              disabled={disableSelf}
+              disabled={disableSelf || !canDelete}
               onConfirm={async () => {
                 try {
                   await api(`/users/${record.id}`, { method: 'DELETE' }, true);
@@ -321,7 +402,7 @@ function UsersListPage({ currentUser, onChanged }: { currentUser: AuthUser; onCh
                 }
               }}
             >
-              <Button size="small" danger disabled={disableSelf}>
+              <Button size="small" danger disabled={disableSelf || !canDelete}>
                 删除
               </Button>
             </Popconfirm>
@@ -346,7 +427,7 @@ function UsersListPage({ currentUser, onChanged }: { currentUser: AuthUser; onCh
             }}
           />
           <div>
-            <Button onClick={() => navigate('/users/create')}>新建用户</Button>
+            <Button onClick={() => navigate('/users/create')} disabled={!canCreate}>新建用户</Button>
           </div>
         </Space>
       </Card>
@@ -369,6 +450,28 @@ function UsersListPage({ currentUser, onChanged }: { currentUser: AuthUser; onCh
           }}
         />
       </Card>
+
+      <Modal
+        title={`分配角色${selectedUser ? `：${selectedUser.name ?? selectedUser.email}` : ''}`}
+        open={assignOpen}
+        onCancel={() => setAssignOpen(false)}
+        onOk={() => void submitAssignRoles()}
+        confirmLoading={assigning}
+        okButtonProps={{ disabled: !canAssignRoles }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Typography.Text type="secondary">请选择要授予的角色</Typography.Text>
+          <Checkbox.Group
+            options={roleOptions.map((role) => ({
+              label: `${role.name} (${role.code})`,
+              value: role.code,
+            }))}
+            value={selectedRoles}
+            onChange={(values) => setSelectedRoles(values as string[])}
+          />
+          {roleLoading ? <Typography.Text>加载角色中...</Typography.Text> : null}
+        </Space>
+      </Modal>
     </Space>
   );
 }
@@ -529,6 +632,162 @@ function ThemeSettingsPage({
         </div>
       </div>
     </Card>
+  );
+}
+
+function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
+  const { message } = AntdApp.useApp();
+  const [roles, setRoles] = useState<RoleSummary[]>([]);
+  const [permissions, setPermissions] = useState<PermissionItem[]>([]);
+  const [modules, setModules] = useState<ModuleItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [savingPermissions, setSavingPermissions] = useState(false);
+  const [savingModules, setSavingModules] = useState(false);
+  const [selectedRoleCode, setSelectedRoleCode] = useState<string>('');
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedModules, setSelectedModules] = useState<string[]>([]);
+
+  const refreshAll = async () => {
+    setLoading(true);
+    try {
+      const [roleData, permissionData, moduleData] = await Promise.all([
+        api<ListRolesResponse>('/rbac/roles', undefined, true),
+        api<ListPermissionsResponse>('/rbac/permissions', undefined, true),
+        api<ModuleItem[]>('/modules', undefined, true).catch(() => [] as ModuleItem[]),
+      ]);
+      setRoles(roleData);
+      setPermissions(permissionData);
+      setModules(moduleData);
+
+      if (!selectedRoleCode && roleData.length > 0) {
+        const first = roleData[0];
+        setSelectedRoleCode(first.code);
+        setSelectedPermissions(first.permissions ?? []);
+        setSelectedModules(first.modules ?? []);
+      }
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRoleCode) return;
+    const role = roles.find((item) => item.code === selectedRoleCode);
+    if (!role) return;
+    setSelectedPermissions(role.permissions ?? []);
+    setSelectedModules(role.modules ?? []);
+  }, [roles, selectedRoleCode]);
+
+  const groupedPermissions = useMemo(() => {
+    const map = new Map<string, PermissionItem[]>();
+    for (const perm of permissions) {
+      const list = map.get(perm.moduleCode) ?? [];
+      list.push(perm);
+      map.set(perm.moduleCode, list);
+    }
+    return Array.from(map.entries());
+  }, [permissions]);
+
+  const handleSavePermissions = async () => {
+    if (!selectedRoleCode) return;
+    setSavingPermissions(true);
+    try {
+      await api(`/rbac/roles/${selectedRoleCode}/permissions`, {
+        method: 'PUT',
+        body: JSON.stringify({ permissionCodes: selectedPermissions }),
+      }, true);
+      message.success('权限点已更新');
+      await refreshAll();
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setSavingPermissions(false);
+    }
+  };
+
+  const handleSaveModules = async () => {
+    if (!selectedRoleCode) return;
+    setSavingModules(true);
+    try {
+      await api(`/rbac/roles/${selectedRoleCode}/modules`, {
+        method: 'PUT',
+        body: JSON.stringify({ moduleCodes: selectedModules }),
+      }, true);
+      message.success('模块授权已更新');
+      await refreshAll();
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setSavingModules(false);
+    }
+  };
+
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card title="角色选择" loading={loading}>
+        <Space wrap>
+          <Select
+            value={selectedRoleCode}
+            onChange={(value) => setSelectedRoleCode(value)}
+            style={{ minWidth: 240 }}
+            options={roles.map((role) => ({
+              value: role.code,
+              label: `${role.name} (${role.code})`,
+            }))}
+          />
+          <Button onClick={() => void refreshAll()}>刷新</Button>
+        </Space>
+      </Card>
+
+      <Card
+        title="权限点"
+        extra={
+          <Button type="primary" onClick={() => void handleSavePermissions()} disabled={!canUpdate} loading={savingPermissions}>
+            保存权限点
+          </Button>
+        }
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          {groupedPermissions.map(([moduleCode, perms]) => (
+            <Card key={moduleCode} size="small" title={`模块：${moduleCode}`}>
+              <Checkbox.Group
+                value={selectedPermissions}
+                onChange={(values) => setSelectedPermissions(values as string[])}
+                options={perms.map((perm) => ({
+                  label: `${perm.name} (${perm.code})`,
+                  value: perm.code,
+                }))}
+              />
+            </Card>
+          ))}
+        </Space>
+      </Card>
+
+      <Card
+        title="模块授权"
+        extra={
+          <Button type="primary" onClick={() => void handleSaveModules()} disabled={!canUpdate} loading={savingModules}>
+            保存模块授权
+          </Button>
+        }
+      >
+        <Checkbox.Group
+          value={selectedModules}
+          onChange={(values) => setSelectedModules(values as string[])}
+          options={modules.map((module) => ({
+            label: `${module.name} (${module.code})`,
+            value: module.code,
+          }))}
+        />
+      </Card>
+    </Space>
   );
 }
 
@@ -1090,6 +1349,9 @@ function AppShell({
   const canModuleRead = can('module.read');
   const canModuleUpdate = can('module.update');
   const canAuditRead = can('audit.read');
+  const canRbacRead = can('rbac.read');
+  const canRbacUpdate = can('rbac.update');
+  const canAssignRoles = canRbacUpdate;
 
   useEffect(() => {
     const isRouteForbidden =
@@ -1097,7 +1359,8 @@ function AppShell({
       (location.pathname.startsWith('/audit-logs') && !canAuditRead) ||
       (location.pathname.startsWith('/projects') && !canProjectRead) ||
       (location.pathname.startsWith('/hr') && !canHrRead) ||
-      (location.pathname.startsWith('/settings/modules') && !canModuleRead);
+      (location.pathname.startsWith('/settings/modules') && !canModuleRead) ||
+      (location.pathname.startsWith('/settings/rbac') && !canRbacRead);
 
     const isRouteDisabledByModule =
       (location.pathname.startsWith('/users') && !enabledModuleCodes.has('users')) ||
@@ -1142,6 +1405,8 @@ function AppShell({
       items.push({ title: '人员管理' });
     } else if (location.pathname.startsWith('/settings/modules')) {
       items.push({ title: '模块管理' });
+    } else if (location.pathname.startsWith('/settings/rbac')) {
+      items.push({ title: '权限配置' });
     } else if (location.pathname.startsWith('/audit-logs')) {
       items.push({ title: '审计日志' });
     } else if (location.pathname.startsWith('/settings/theme')) {
@@ -1336,7 +1601,20 @@ function AppShell({
 
               {canUsersRead ? (
                 <>
-                  <Route path="/users" element={<UsersListPage currentUser={user} onChanged={() => void 0} />} />
+                  <Route
+                    path="/users"
+                    element={
+                      <UsersListPage
+                        currentUser={user}
+                        onChanged={() => void 0}
+                        canCreate={can('users.create')}
+                        canUpdate={can('users.update')}
+                        canDelete={can('users.delete')}
+                        canAssignRoles={canAssignRoles}
+                        canReadRoles={canRbacRead}
+                      />
+                    }
+                  />
                   <Route path="/users/create" element={<UserCreatePage />} />
                   <Route path="/users/:id" element={<UserShowPage />} />
                   <Route path="/users/:id/edit" element={<UserEditPage />} />
@@ -1370,6 +1648,10 @@ function AppShell({
                     />
                   }
                 />
+              ) : null}
+
+              {canRbacRead ? (
+                <Route path="/settings/rbac" element={<RbacSettingsPage canUpdate={canRbacUpdate} />} />
               ) : null}
 
               {canAuditRead ? <Route path="/audit-logs" element={<AuditLogsPage />} /> : null}

@@ -1,4 +1,4 @@
-import { AppstoreOutlined, BgColorsOutlined, DashboardOutlined, TeamOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, BgColorsOutlined, DashboardOutlined, SafetyCertificateOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ReactNode } from 'react';
 import { auditMenuItem } from './audit/audit-menu-item';
 import { hrMenuItem } from './hr-menu-item';
@@ -38,6 +38,14 @@ export const menuConfig: MenuItemConfig[] = [
     path: '/settings/modules',
     icon: <AppstoreOutlined />,
     requiredPermissions: ['module.read'],
+    moduleCode: 'core',
+  },
+  {
+    key: 'rbac-settings',
+    label: '权限配置',
+    path: '/settings/rbac',
+    icon: <SafetyCertificateOutlined />,
+    requiredPermissions: ['rbac.read'],
     moduleCode: 'core',
   },
   {
