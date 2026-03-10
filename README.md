@@ -1,77 +1,98 @@
 # Motila
 
-基于 **Refine + Ant Design + NestJS + Prisma + SQLite（开发环境）** 的综合关系系统工程。
+基于 **Refine + Ant Design + NestJS + Prisma + SQLite（开发环境）** 的后台管理系统。
 
-## 技术栈
+---
 
-- **前端**：React 19 + Vite + TypeScript + Refine + Ant Design
+## 1. 技术栈
+
+- **前端**：React 19 + Vite + TypeScript + Ant Design + Refine
 - **后端**：NestJS 11 + TypeScript
-- **数据层**：Prisma ORM（SQLite 开发库，可平滑切到 PostgreSQL）
+- **数据层**：Prisma ORM（开发默认 SQLite）
+- **进程管理**：PM2（可选，用于长期运行）
 
-## 当前工程结构
+---
+
+## 2. 当前已实现功能（截至 2026-03-11）
+
+### 2.1 认证与账号
+- 登录 / 注册 / JWT 鉴权
+- `/auth/me` 获取当前用户信息
+- 修改本人密码
+
+### 2.2 用户管理
+- 用户列表、新建、编辑、删除
+- 管理员安全策略（禁止误删/误降权）
+- 用户头像字段 `avatarUrl`
+  - 新建/编辑支持填写头像地址
+  - 列表/详情/个人信息页展示头像（无头像时首字母占位）
+
+### 2.3 系统配置（配置 -> 系统配置）
+- 配置字段：`name`、`title`、`logoUrl`、`logoImage`、`footerText`、`isActive`
+- 生效约束：同一时间仅一条 `isActive=true`
+- 站点联动：
+  - 左侧 Logo
+  - 浏览器标题（`document.title`）
+  - 页脚 Footer
+- Logo 优先级：`logoImage` > `logoUrl` > 默认文案 `Motila`
+- Footer 支持部分超链接 Markdown：`[文本](https://example.com)`
+
+### 2.4 权限与模块
+- RBAC 基础能力：角色、权限、用户角色分配
+- 新增权限点：`settings.read`、`settings.update`
+- 模块开关（启用/禁用）影响菜单与路由可见性
+
+### 2.5 界面与导航
+- 主题皮肤：business / tech / dark / auto
+- 顶部用户信息改为 **头像 + 昵称 + 角色**（非按钮风格，下拉菜单保留）
+- 菜单配置支持：
+  - `parentKey`（父子绑定）
+  - `sortOrder`（排序）
+  - 配置驱动构建树，无需改菜单渲染逻辑
+
+---
+
+## 3. 目录结构
 
 ```text
 Motila/
-├─ frontend/                 # Refine + Ant Design 前端管理界面
-│  ├─ src/
-│  ├─ public/
-│  ├─ package.json
-│  └─ vite.config.ts
-│
-├─ backend/                  # NestJS 后端服务
-│  ├─ src/
-│  ├─ test/
-│  ├─ prisma/                # Prisma 数据模型
-│  │  └─ schema.prisma
-│  ├─ prisma.config.ts
-│  ├─ .env                   # 数据库连接（本地开发）
-│  └─ package.json
-│
-├─ docs/                     # 架构与业务文档
-│  └─ system-spec.md         # 系统说明书
-├─ scripts/                  # 自动化脚本
-├─ .gitignore
+├─ frontend/                 # 前端工程（Vite + React）
+├─ backend/                  # 后端工程（NestJS + Prisma）
+├─ docs/                     # 文档（产品说明书 / 系统操作手册）
+├─ scripts/                  # 脚本目录
+├─ ecosystem.config.cjs      # PM2 配置
+├─ package.json              # 根目录脚本（dev:all）
 └─ README.md
 ```
 
-## 一、从 GitHub 下载项目
+---
 
-```bash
-git clone git@github.com:yangtiancheng/Motila.git
-cd Motila
-```
-
-> 若你本机未配置 SSH，可用 HTTPS：
->
-> ```bash
-> git clone https://github.com/yangtiancheng/Motila.git
-> ```
-
-## 二、环境要求
+## 4. 环境要求
 
 - Node.js 20+（建议 22 LTS）
 - npm 10+
-- PM2（用于生产/长期运行）
+- PM2（可选）
 
-安装 PM2：
+安装 PM2（可选）：
 
 ```bash
 npm i -g pm2
 ```
 
-## 三、开发环境安装与启动
+---
 
-### 1）安装依赖
+## 5. 本地开发启动
+
+### 5.1 安装依赖
 
 ```bash
-# 在 Motila 根目录
+cd Motila
 npm install
-cd frontend && npm install
-cd ../backend && npm install
-cd ..
+npm --prefix backend install
+npm --prefix frontend install
 ```
 
-### 2）初始化数据库（首次）
+### 5.2 初始化数据库（首次）
 
 ```bash
 cd backend
@@ -80,37 +101,36 @@ npx prisma migrate dev --name init_sqlite
 cd ..
 ```
 
-### 3）启动项目
+### 5.3 启动
 
-方式 A（推荐，一键）：
+**方式 A（推荐）**
 
 ```bash
 npm run dev:all
 ```
 
-方式 B（分开启动）：
+**方式 B（分开）**
 
 ```bash
 # 终端1
-cd backend
-npm run start
+npm --prefix backend run start
 
 # 终端2
-cd frontend
-npm run dev -- --host 0.0.0.0 --port 5173
+npm --prefix frontend run dev -- --host 0.0.0.0 --port 5173
 ```
 
-## 四、生产部署（PM2）
+默认访问：
+- 前端：`http://<host>:5173`
+- 后端健康检查：`http://<host>:3000/health`
 
-### 1）构建
+---
 
-```bash
-cd backend && npm run build
-cd ../frontend && npm run build
-cd ..
-```
+## 6. 生产/长期运行（PM2）
 
-### 2）使用 PM2 启动
+> 当前 `ecosystem.config.cjs` 使用的是开发启动命令（`start` / `vite dev`），适合长期开发机托管；
+> 若做正式生产部署，建议补充 `build + start:prod + static server` 方案。
+
+启动：
 
 ```bash
 pm2 start ecosystem.config.cjs
@@ -118,100 +138,41 @@ pm2 status
 pm2 save
 ```
 
-### 3）更新后发布流程
+重启：
 
 ```bash
-git pull
-cd backend && npm run build
-cd ../frontend && npm run build
-cd ..
 pm2 restart motila-backend motila-frontend
 pm2 save
 ```
 
-## 五、常见问题
+---
 
-### 1）登录后白屏
-- 确认前端已最新代码（`frontend/src/main.tsx` 已使用 `BrowserRouter`）
-- 执行 `npm run build` 后重启 PM2
+## 7. 功能验证基线（本次实测）
 
-### 2）数据库迁移报错
-- 先执行 `cd backend && npx prisma generate`
-- 再执行 `npx prisma migrate dev`
+- `GET /health`：返回 `{"ok":true}`
+- 前端首页：HTTP `200`
+- 未登录访问 `GET /users`：HTTP `401 Unauthorized`（鉴权生效）
 
-### 3）端口访问
-- 前端默认：`5173`
-- 后端默认：`3000`
-- 前端请求后端地址使用：`http://<当前域名或IP>:3000`
+---
 
-## 文档
+## 8. 常见问题
 
-- 系统说明书：`docs/system-spec.md`
+1) **后端 `GET /` 返回 404 是不是挂了？**  
+不是。后端健康检查以 `GET /health` 为准。
+
+2) **系统配置改完没生效？**  
+确认目标配置 `isActive=true`，并刷新页面。
+
+3) **Logo 没展示？**  
+优先检查 `logoImage` 是否存在；其次 `logoUrl` 是否可访问。
+
+4) **头像不显示？**  
+确认 `avatarUrl` 是可公网访问的合法 URL。
+
+---
+
+## 9. 文档入口
+
 - 产品说明书：`docs/产品说明书.md`
 - 系统操作手册：`docs/系统操作手册.md`
-
-## 最近更新（2026-03-10）
-
-- 新增「配置 -> 系统配置」管理页
-- 支持系统名称/标题/Logo/Footer 配置
-- 系统配置支持 Logo 上传（base64），优先级：上传 Logo > logoUrl > 默认 Motila
-- 菜单配置支持 parentKey 父子绑定与 sortOrder 排序
-- 顶部用户信息展示优化为头像 + 昵称（下拉操作保留）
-- 用户管理支持头像字段（avatarUrl），列表/详情页展示
-- 生效规则：同一时间仅一个有效配置
-- 有效配置可驱动左侧 Logo、顶部标题、浏览器标题与 Footer
-- 新增权限点：`settings.read`、`settings.update`
-
-## 已完成搭建
-
-- [x] 创建统一工程目录（frontend/backend/docs/scripts）
-- [x] 初始化前端 Vite React-TS 工程
-- [x] 安装 Refine + Ant Design 核心依赖
-- [x] 初始化后端 NestJS 工程
-- [x] 安装 Prisma 并完成 `prisma init`
-- [x] 完成认证模块（注册/登录/JWT）
-- [x] 完成用户管理 API（管理员可查看/创建/编辑/删除）
-- [x] 完成用户管理 UI（Refine + Ant Design）
-- [x] 增加安全保护（禁止删除自己、至少保留一个管理员）
-
-### 一键启动（推荐）
-
-```bash
-# 在 Motila 根目录
-npm install
-npm run dev:all
-```
-
-### 分开启动
-
-前端：
-
-```bash
-cd frontend
-npm install
-npm run dev -- --host 0.0.0.0 --port 5173
-```
-
-后端：
-
-```bash
-cd backend
-npm install
-npm run start
-```
-
-### 数据库（Prisma）
-
-开发环境默认使用 SQLite（`backend/dev.db`），首次拉起可执行：
-
-```bash
-cd backend
-npx prisma migrate dev --name init_sqlite
-```
-
-## 下一步建议
-
-1. 在后端定义核心实体（如：客户、联系人、跟进记录）
-2. 生成 Prisma migration 并落库
-3. 前端按资源建立 List / Create / Edit / Show 页面
-4. 统一主题与设计规范（Ant Design Token + Refine 资源路由）
+- 变更记录：`RELEASE.md`
