@@ -55,8 +55,34 @@ body {
   min-width: 0;
 }
 
-.profile-trigger {
+.profile-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
   border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.profile-summary:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.profile-summary-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.profile-summary-name {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.profile-summary-role {
+  font-size: 12px;
+  color: #64748b;
 }
 
 .theme-settings-grid {
@@ -267,6 +293,18 @@ body {
   background: #1e293b;
   color: #e5e7eb;
   border-color: #334155;
+}
+
+.skin-dark .profile-summary:hover {
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.skin-dark .profile-summary-name {
+  color: #e5e7eb;
+}
+
+.skin-dark .profile-summary-role {
+  color: #94a3b8;
 }
 
 @media (max-width: 960px) {

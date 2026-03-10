@@ -2136,7 +2136,15 @@ function AppShell({
               placement="bottomRight"
               trigger={['click']}
             >
-              <Button className="profile-trigger">{user.name ?? user.email}（{user.role}）</Button>
+              <div className="profile-summary" role="button" tabIndex={0}>
+                <Avatar src={user.avatarUrl} size={34}>
+                  {(user.name ?? user.email).slice(0, 1)}
+                </Avatar>
+                <div className="profile-summary-text">
+                  <span className="profile-summary-name">{user.name ?? user.email}</span>
+                  <span className="profile-summary-role">{user.role}</span>
+                </div>
+              </div>
             </Dropdown>
           </Layout.Header>
 
