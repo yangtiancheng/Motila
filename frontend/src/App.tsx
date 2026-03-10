@@ -19,6 +19,7 @@ import {
   Tag,
   Typography,
   Switch,
+  Upload,
 } from 'antd';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -85,6 +86,7 @@ type SystemConfigItem = {
   name: string;
   title: string;
   logoUrl?: string | null;
+  logoImage?: string | null;
   footerText?: string | null;
   isActive: boolean;
   createdAt: string;
@@ -210,7 +212,16 @@ async function api<T>(path: string, init?: RequestInit, withAuth = false): Promi
     return {} as T;
   }
 
-  return (await response.json()) as T;
+  const text = await response.text();
+  if (!text) {
+    return null as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`响应解析失败: ${response.status}`);
+  }
 }
 
 function DashboardPage({ user }: { user: AuthUser }) {
@@ -599,6 +610,7 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
     name: string;
     title: string;
     logoUrl?: string;
+    logoImage?: string;
     footerText?: string;
     isActive?: boolean;
   }>();
@@ -621,7 +633,7 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
 
   const openCreate = () => {
     setEditing(null);
-    form.setFieldsValue({ name: '', title: '', logoUrl: '', footerText: '', isActive: false });
+    form.setFieldsValue({ name: '', title: '', logoUrl: '', logoImage: '', footerText: '', isActive: false });
     setOpen(true);
   };
 
@@ -631,10 +643,24 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
       name: record.name,
       title: record.title,
       logoUrl: record.logoUrl ?? '',
+      logoImage: record.logoImage ?? '',
       footerText: record.footerText ?? '',
       isActive: record.isActive,
     });
     setOpen(true);
+  };
+
+  const onUploadLogo = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      form.setFieldValue('logoImage', String(reader.result ?? ''));
+      message.success('Logo 上传成功');
+    };
+    reader.onerror = () => {
+      message.error('Logo 上传失败');
+    };
+    reader.readAsDataURL(file);
+    return false;
   };
 
   return (
@@ -654,7 +680,8 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
           columns={[
             { title: '系统名称', dataIndex: 'name' },
             { title: '系统标题', dataIndex: 'title' },
-            { title: '系统Logo', dataIndex: 'logoUrl', render: (value?: string) => value || '-' },
+            { title: '系统Logo(上传)', dataIndex: 'logoImage', render: (value?: string) => (value ? '已上传' : '-') },
+            { title: '系统Logo(URL)', dataIndex: 'logoUrl', render: (value?: string) => value || '-' },
             { title: 'Footer文字', dataIndex: 'footerText', render: (value?: string) => value || '-' },
             {
               title: '有效',
@@ -703,17 +730,25 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
         onOk={async () => {
           try {
             const values = await form.validateFields();
+            const payload = {
+              ...values,
+              name: values.name?.trim(),
+              title: values.title?.trim(),
+              logoUrl: values.logoUrl?.trim() ? values.logoUrl.trim() : undefined,
+              logoImage: values.logoImage?.trim() ? values.logoImage.trim() : undefined,
+              footerText: values.footerText?.trim() ? values.footerText.trim() : undefined,
+            };
             setSaving(true);
             if (editing) {
               await api(`/system-configs/${editing.id}`, {
                 method: 'PATCH',
-                body: JSON.stringify(values),
+                body: JSON.stringify(payload),
               }, true);
               message.success('配置已更新');
             } else {
               await api('/system-configs', {
                 method: 'POST',
-                body: JSON.stringify(values),
+                body: JSON.stringify(payload),
               }, true);
               message.success('配置已创建');
             }
@@ -736,8 +771,16 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
           <Form.Item label="系统标题" name="title" rules={[{ required: true, min: 2 }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="系统Logo" name="logoUrl">
+          <Form.Item label="系统Logo URL" name="logoUrl">
             <Input placeholder="https://..." />
+          </Form.Item>
+          <Form.Item label="系统Logo 上传" name="logoImage" extra="支持 png/jpg/webp，上传后优先于 logoUrl 生效">
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Upload beforeUpload={onUploadLogo} showUploadList={false} accept="image/png,image/jpeg,image/webp">
+                <Button>上传图片</Button>
+              </Upload>
+              <Input.TextArea rows={3} placeholder="也可粘贴 data:image/...;base64,..." />
+            </Space>
           </Form.Item>
           <Form.Item label="Footer文字" name="footerText">
             <Input />
@@ -1738,6 +1781,7 @@ function AppShell({
   const effectiveSkin = resolveEffectiveSkin(skin, systemPrefersDark);
   const activeTheme = getThemeBySkin(effectiveSkin, branding);
   const activeSystemConfig = systemConfig;
+  const logoSrc = activeSystemConfig?.logoImage || activeSystemConfig?.logoUrl || '';
   const logoLabel = activeSystemConfig?.name ?? 'Motila';
   const headerTitle = activeSystemConfig?.title ?? 'Motila 管理系统';
   const footerText = activeSystemConfig?.footerText ?? 'Motila © 2026';
@@ -1962,8 +2006,8 @@ function AppShell({
               if (event.key === 'Enter') navigate('/dashboard');
             }}
           >
-            {activeSystemConfig?.logoUrl ? (
-              <img src={activeSystemConfig.logoUrl} alt={activeSystemConfig.name} className="logo-image" />
+            {logoSrc ? (
+              <img src={logoSrc} alt={activeSystemConfig?.name ?? 'logo'} className="logo-image" />
             ) : (
               logoLabel
             )}

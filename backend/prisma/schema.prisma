@@ -177,6 +177,7 @@ model SystemConfig {
   name       String
   title      String
   logoUrl    String?
+  logoImage  String?
   footerText String?
   isActive   Boolean  @default(false)
   createdAt  DateTime @default(now())

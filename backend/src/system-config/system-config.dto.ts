@@ -15,6 +15,10 @@ export class CreateSystemConfigDto {
 
   @IsOptional()
   @IsString()
+  logoImage?: string;
+
+  @IsOptional()
+  @IsString()
   @Length(0, 200)
   footerText?: string;
 
@@ -37,6 +41,10 @@ export class UpdateSystemConfigDto {
   @IsOptional()
   @IsUrl()
   logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  logoImage?: string;
 
   @IsOptional()
   @IsString()
