@@ -39,6 +39,14 @@ export const menuConfig: MenuItemConfig[] = [
         moduleCode: 'users',
       },
       {
+        key: 'system-settings',
+        label: '系统配置',
+        path: '/settings/system',
+        icon: <SettingOutlined />,
+        requiredPermissions: ['settings.read'],
+        moduleCode: 'core',
+      },
+      {
         key: 'module-settings',
         label: '模块管理',
         path: '/settings/modules',

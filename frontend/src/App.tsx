@@ -79,6 +79,18 @@ type ListUsersResponse = {
   pageSize: number;
 };
 
+
+type SystemConfigItem = {
+  id: string;
+  name: string;
+  title: string;
+  logoUrl?: string | null;
+  footerText?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type ProjectStatus = 'PLANNING' | 'ACTIVE' | 'ON_HOLD' | 'DONE' | 'ARCHIVED';
 
 type ProjectItem = {
@@ -573,6 +585,169 @@ function UserShowPage() {
         <Typography.Text>更新时间：{new Date(data.updatedAt).toLocaleString()}</Typography.Text>
       </Space>
     </Card>
+  );
+}
+
+function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; onConfigApplied: () => void }) {
+  const { message } = AntdApp.useApp();
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [rows, setRows] = useState<SystemConfigItem[]>([]);
+  const [editing, setEditing] = useState<SystemConfigItem | null>(null);
+  const [open, setOpen] = useState(false);
+  const [form] = Form.useForm<{
+    name: string;
+    title: string;
+    logoUrl?: string;
+    footerText?: string;
+    isActive?: boolean;
+  }>();
+
+  const fetchRows = async () => {
+    setLoading(true);
+    try {
+      const data = await api<SystemConfigItem[]>('/system-configs', undefined, true);
+      setRows(data);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchRows();
+  }, []);
+
+  const openCreate = () => {
+    setEditing(null);
+    form.setFieldsValue({ name: '', title: '', logoUrl: '', footerText: '', isActive: false });
+    setOpen(true);
+  };
+
+  const openEdit = (record: SystemConfigItem) => {
+    setEditing(record);
+    form.setFieldsValue({
+      name: record.name,
+      title: record.title,
+      logoUrl: record.logoUrl ?? '',
+      footerText: record.footerText ?? '',
+      isActive: record.isActive,
+    });
+    setOpen(true);
+  };
+
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card
+        title="系统配置"
+        extra={
+          <Button type="primary" onClick={openCreate} disabled={!canUpdate}>
+            新建配置
+          </Button>
+        }
+      >
+        <Table<SystemConfigItem>
+          rowKey="id"
+          loading={loading}
+          dataSource={rows}
+          columns={[
+            { title: '系统名称', dataIndex: 'name' },
+            { title: '系统标题', dataIndex: 'title' },
+            { title: '系统Logo', dataIndex: 'logoUrl', render: (value?: string) => value || '-' },
+            { title: 'Footer文字', dataIndex: 'footerText', render: (value?: string) => value || '-' },
+            {
+              title: '有效',
+              dataIndex: 'isActive',
+              render: (value: boolean) => (value ? '是' : '否'),
+            },
+            {
+              title: '操作',
+              render: (_, record) => (
+                <Space>
+                  <Button size="small" onClick={() => openEdit(record)} disabled={!canUpdate}>
+                    编辑
+                  </Button>
+                  <Popconfirm
+                    title="确认删除该配置？"
+                    okText="删除"
+                    cancelText="取消"
+                    disabled={!canUpdate || record.isActive}
+                    onConfirm={async () => {
+                      try {
+                        await api(`/system-configs/${record.id}`, { method: 'DELETE' }, true);
+                        message.success('已删除');
+                        void fetchRows();
+                        onConfigApplied();
+                      } catch (error) {
+                        message.error(parseError(error));
+                      }
+                    }}
+                  >
+                    <Button size="small" danger disabled={!canUpdate || record.isActive}>
+                      删除
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              ),
+            },
+          ]}
+          pagination={false}
+        />
+      </Card>
+
+      <Modal
+        title={editing ? '编辑配置' : '新建配置'}
+        open={open}
+        onCancel={() => setOpen(false)}
+        onOk={async () => {
+          try {
+            const values = await form.validateFields();
+            setSaving(true);
+            if (editing) {
+              await api(`/system-configs/${editing.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify(values),
+              }, true);
+              message.success('配置已更新');
+            } else {
+              await api('/system-configs', {
+                method: 'POST',
+                body: JSON.stringify(values),
+              }, true);
+              message.success('配置已创建');
+            }
+            setOpen(false);
+            await fetchRows();
+            onConfigApplied();
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('validate')) return;
+            message.error(parseError(error));
+          } finally {
+            setSaving(false);
+          }
+        }}
+        confirmLoading={saving}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item label="系统名称" name="name" rules={[{ required: true, min: 2 }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="系统标题" name="title" rules={[{ required: true, min: 2 }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item label="系统Logo" name="logoUrl">
+            <Input placeholder="https://..." />
+          </Form.Item>
+          <Form.Item label="Footer文字" name="footerText">
+            <Input />
+          </Form.Item>
+          <Form.Item label="有效" name="isActive" valuePropName="checked">
+            <Checkbox>启用该配置</Checkbox>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </Space>
   );
 }
 
@@ -1492,6 +1667,22 @@ function AppShell({
   const navigate = useNavigate();
   const brandingFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [systemConfig, setSystemConfig] = useState<SystemConfigItem | null>(null);
+
+  const fetchActiveSystemConfig = async () => {
+    try {
+      const data = await api<SystemConfigItem | null>('/system-configs/active', undefined, true);
+      setSystemConfig(data);
+    } catch (error) {
+      message.error(parseError(error));
+    }
+  };
+
+  useEffect(() => {
+    void fetchActiveSystemConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [modules, setModules] = useState<ModuleItem[]>([]);
   const [moduleLoading, setModuleLoading] = useState(false);
 
@@ -1546,6 +1737,14 @@ function AppShell({
 
   const effectiveSkin = resolveEffectiveSkin(skin, systemPrefersDark);
   const activeTheme = getThemeBySkin(effectiveSkin, branding);
+  const activeSystemConfig = systemConfig;
+  const logoLabel = activeSystemConfig?.name ?? 'Motila';
+  const headerTitle = activeSystemConfig?.title ?? 'Motila 管理系统';
+  const footerText = activeSystemConfig?.footerText ?? 'Motila © 2026';
+
+  useEffect(() => {
+    document.title = headerTitle;
+  }, [headerTitle]);
 
   const menuItems = buildMenuByAccess(user.permissions, Array.from(enabledModuleCodes));
   const flatMenuItems = menuItems.flatMap((item) => item.children ?? [item]);
@@ -1561,6 +1760,8 @@ function AppShell({
   const canHrCreate = can('hr.create');
   const canHrUpdate = can('hr.update');
   const canModuleRead = can('module.read');
+  const canSettingsRead = can('settings.read');
+  const canSettingsUpdate = can('settings.update');
   const canModuleUpdate = can('module.update');
   const canAuditRead = can('audit.read');
   const canRbacRead = can('rbac.read');
@@ -1573,6 +1774,7 @@ function AppShell({
       (location.pathname.startsWith('/audit-logs') && !canAuditRead) ||
       (location.pathname.startsWith('/projects') && !canProjectRead) ||
       (location.pathname.startsWith('/hr') && !canHrRead) ||
+      (location.pathname.startsWith('/settings/system') && !canSettingsRead) ||
       (location.pathname.startsWith('/settings/modules') && !canModuleRead) ||
       (location.pathname.startsWith('/settings/rbac') && !canRbacRead);
 
@@ -1621,6 +1823,8 @@ function AppShell({
       items.push({ title: '配置' }, { title: '模块管理' });
     } else if (location.pathname.startsWith('/settings/rbac')) {
       items.push({ title: '配置' }, { title: '权限配置' });
+    } else if (location.pathname.startsWith('/settings/system')) {
+      items.push({ title: '配置' }, { title: '系统配置' });
     } else if (location.pathname.startsWith('/audit-logs')) {
       items.push({ title: '配置' }, { title: '审计日志' });
     } else if (location.pathname.startsWith('/settings/theme')) {
@@ -1758,7 +1962,11 @@ function AppShell({
               if (event.key === 'Enter') navigate('/dashboard');
             }}
           >
-            Motila
+            {activeSystemConfig?.logoUrl ? (
+              <img src={activeSystemConfig.logoUrl} alt={activeSystemConfig.name} className="logo-image" />
+            ) : (
+              logoLabel
+            )}
           </div>
           <Menu
             mode="inline"
@@ -1786,7 +1994,10 @@ function AppShell({
 
         <Layout>
           <Layout.Header className="app-header">
-            <Breadcrumb items={breadcrumbItems} className="header-breadcrumb" />
+            <div className="header-left">
+              <Breadcrumb items={breadcrumbItems} className="header-breadcrumb" />
+              <Typography.Text className="app-header-title">{headerTitle}</Typography.Text>
+            </div>
 
             <Dropdown
               menu={{
@@ -1815,7 +2026,12 @@ function AppShell({
           <Layout.Content className="app-content">
             <Routes>
               <Route path="/dashboard" element={<DashboardPage user={user} />} />
-              <Route
+                            <Route
+                path="/settings/system"
+                element={<SystemConfigPage canUpdate={canSettingsUpdate} onConfigApplied={fetchActiveSystemConfig} />}
+              />
+
+<Route
                 path="/settings/theme"
                 element={
                   <ThemeSettingsPage
@@ -1891,6 +2107,7 @@ function AppShell({
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout.Content>
+          <Layout.Footer className="app-footer">{footerText}</Layout.Footer>
         </Layout>
 
         <Modal

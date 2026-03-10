@@ -170,3 +170,15 @@ model RoleModuleGrant {
 
   @@unique([roleId, moduleCode])
 }
+
+
+model SystemConfig {
+  id         String   @id @default(cuid())
+  name       String
+  title      String
+  logoUrl    String?
+  footerText String?
+  isActive   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
