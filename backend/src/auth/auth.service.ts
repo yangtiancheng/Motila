@@ -39,7 +39,7 @@ export class AuthService {
         passwordHash,
         role: UserRole.USER,
       },
-      select: { id: true, username: true, email: true, name: true, role: true },
+      select: { id: true, username: true, email: true, name: true, avatarUrl: true, role: true },
     });
 
     const access = await this.rbacService.buildAccessContext(user.id);
@@ -76,12 +76,27 @@ export class AuthService {
         username: user.username,
         email: user.email,
         name: user.name,
+        avatarUrl: user.avatarUrl,
         role: user.role,
         roles: access.roleCodes,
         permissions: access.permissions,
         modules: access.modules,
       },
     };
+  }
+
+  async getMeProfile(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        avatarUrl: true,
+        email: true,
+        role: true,
+      },
+    });
   }
 
   private async signToken(

@@ -29,11 +29,17 @@ export class AuthController {
   async me(@CurrentUser() user: JwtUser | undefined) {
     if (!user?.sub) return null;
 
+    const profile = await this.authService.getMeProfile(user.sub);
+    if (!profile) return null;
+
     const access = await this.rbacService.buildAccessContext(user.sub);
     return {
-      id: user.sub,
-      email: user.email,
-      role: user.role,
+      id: profile.id,
+      username: profile.username,
+      name: profile.name,
+      avatarUrl: profile.avatarUrl,
+      email: profile.email,
+      role: profile.role,
       roles: access.roleCodes,
       permissions: access.permissions,
       modules: access.modules,
