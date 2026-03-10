@@ -22,7 +22,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AuditLogsPage } from './audit/AuditLogsPage';
-import { buildMenuByRole, type AppRole } from './menu.config';
+import { buildMenuByAccess } from './menu.config';
 import { SchemaForm } from './shared/form/SchemaForm';
 import { SchemaQueryBar } from './shared/list/SchemaQueryBar';
 import { buildListQuery } from './shared/list/query.types';
@@ -51,10 +51,13 @@ type UserRole = 'ADMIN' | 'USER';
 
 type AuthUser = {
   id: string;
-  username: string;
+  username?: string;
   email: string;
-  name: string;
+  name?: string;
   role: UserRole;
+  roles: string[];
+  permissions: string[];
+  modules: string[];
 };
 
 type UserItem = AuthUser & {
@@ -533,8 +536,8 @@ function ProfilePage({ user }: { user: AuthUser }) {
   return (
     <Card title="个人信息">
       <Space direction="vertical" size={8}>
-        <Typography.Text>昵称：{user.name}</Typography.Text>
-        <Typography.Text>用户名：{user.username}</Typography.Text>
+        <Typography.Text>昵称：{user.name ?? '-'}</Typography.Text>
+        <Typography.Text>用户名：{user.username ?? '-'}</Typography.Text>
         <Typography.Text>邮箱：{user.email}</Typography.Text>
         <Typography.Text>角色：{user.role}</Typography.Text>
         <Typography.Text type="secondary">用户详情页（个人视角）</Typography.Text>
@@ -543,7 +546,7 @@ function ProfilePage({ user }: { user: AuthUser }) {
   );
 }
 
-function ProjectPage() {
+function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: boolean }) {
   const { message } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -631,7 +634,7 @@ function ProjectPage() {
               { label: '归档', value: 'ARCHIVED' },
             ]}
           />
-          <Button type="primary" onClick={openCreate}>新建项目</Button>
+          <Button type="primary" onClick={openCreate} disabled={!canCreate}>新建项目</Button>
         </Space>
       </Card>
 
@@ -652,7 +655,7 @@ function ProjectPage() {
             {
               title: '操作',
               render: (_, record) => (
-                <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
+                <Button size="small" onClick={() => openEdit(record)} disabled={!canUpdate}>编辑</Button>
               ),
             },
           ]}
@@ -727,7 +730,7 @@ function ProjectPage() {
   );
 }
 
-function HrEmployeesPage() {
+function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: boolean }) {
   const { message } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -809,7 +812,7 @@ function HrEmployeesPage() {
               { label: '离职', value: 'INACTIVE' },
             ]}
           />
-          <Button type="primary" onClick={openCreate}>新建员工</Button>
+          <Button type="primary" onClick={openCreate} disabled={!canCreate}>新建员工</Button>
         </Space>
       </Card>
 
@@ -828,7 +831,7 @@ function HrEmployeesPage() {
             {
               title: '操作',
               render: (_, record) => (
-                <Button size="small" onClick={() => openEdit(record)}>编辑</Button>
+                <Button size="small" onClick={() => openEdit(record)} disabled={!canUpdate}>编辑</Button>
               ),
             },
           ]}
@@ -909,11 +912,13 @@ function HrEmployeesPage() {
 function ModulesPage({
   modules,
   loading,
+  canUpdate,
   onReload,
   onToggle,
 }: {
   modules: ModuleItem[];
   loading: boolean;
+  canUpdate: boolean;
   onReload: () => Promise<void>;
   onToggle: (module: ModuleItem, nextEnabled: boolean) => Promise<void>;
 }) {
@@ -972,7 +977,7 @@ function ModulesPage({
             width: 120,
             render: (_value, record) => {
               const checked = record.status === 'ENABLED';
-              const disabled = record.isCore || submittingCode === record.code;
+              const disabled = record.isCore || !canUpdate || submittingCode === record.code;
               return (
                 <Switch
                   checked={checked}
@@ -1019,6 +1024,10 @@ function AppShell({
   const [modules, setModules] = useState<ModuleItem[]>([]);
   const [moduleLoading, setModuleLoading] = useState(false);
 
+  const permissionSet = useMemo(() => new Set(user.permissions ?? []), [user.permissions]);
+
+  const can = (permission: string) => permissionSet.has(permission);
+
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() =>
     typeof window !== 'undefined' && window.matchMedia
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -1034,7 +1043,7 @@ function AppShell({
   }, []);
 
   const refreshModules = async () => {
-    if (user.role !== 'ADMIN') {
+    if (!can('module.read')) {
       setModules([{ code: 'core', name: '系统核心', status: 'ENABLED', isCore: true, sortOrder: 0, dependencies: [], dependents: [] }]);
       return;
     }
@@ -1054,7 +1063,7 @@ function AppShell({
   useEffect(() => {
     void refreshModules();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.role]);
+  }, [user.permissions]);
 
   const enabledModuleCodes = useMemo(() => {
     const set = new Set<string>(['core']);
@@ -1067,22 +1076,50 @@ function AppShell({
   const effectiveSkin = resolveEffectiveSkin(skin, systemPrefersDark);
   const activeTheme = getThemeBySkin(effectiveSkin, branding);
 
-  const menuItems = buildMenuByRole(user.role as AppRole, Array.from(enabledModuleCodes));
+  const menuItems = buildMenuByAccess(user.permissions, Array.from(enabledModuleCodes));
   const selectedMenuKey =
     menuItems.find((item) => location.pathname.startsWith(item.path))?.key ?? menuItems[0]?.key;
 
+  const canUsersRead = can('users.read');
+  const canProjectRead = can('project.read');
+  const canProjectCreate = can('project.create');
+  const canProjectUpdate = can('project.update');
+  const canHrRead = can('hr.read');
+  const canHrCreate = can('hr.create');
+  const canHrUpdate = can('hr.update');
+  const canModuleRead = can('module.read');
+  const canModuleUpdate = can('module.update');
+  const canAuditRead = can('audit.read');
+
   useEffect(() => {
-    const isRouteDisabled =
+    const isRouteForbidden =
+      (location.pathname.startsWith('/users') && !canUsersRead) ||
+      (location.pathname.startsWith('/audit-logs') && !canAuditRead) ||
+      (location.pathname.startsWith('/projects') && !canProjectRead) ||
+      (location.pathname.startsWith('/hr') && !canHrRead) ||
+      (location.pathname.startsWith('/settings/modules') && !canModuleRead);
+
+    const isRouteDisabledByModule =
       (location.pathname.startsWith('/users') && !enabledModuleCodes.has('users')) ||
       (location.pathname.startsWith('/audit-logs') && !enabledModuleCodes.has('audit')) ||
       (location.pathname.startsWith('/projects') && !enabledModuleCodes.has('project')) ||
       (location.pathname.startsWith('/hr') && !enabledModuleCodes.has('hr'));
 
-    if (isRouteDisabled) {
-      message.warning('当前模块已关闭，已为你跳转到仪表盘');
+    if (isRouteForbidden || isRouteDisabledByModule) {
+      message.warning('当前无权限或模块已关闭，已为你跳转到仪表盘');
       navigate('/dashboard', { replace: true });
     }
-  }, [enabledModuleCodes, location.pathname, message, navigate]);
+  }, [
+    canAuditRead,
+    canHrRead,
+    canModuleRead,
+    canProjectRead,
+    canUsersRead,
+    enabledModuleCodes,
+    location.pathname,
+    message,
+    navigate,
+  ]);
 
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
@@ -1273,7 +1310,7 @@ function AppShell({
               placement="bottomRight"
               trigger={['click']}
             >
-              <Button className="profile-trigger">{user.name}（{user.role}）</Button>
+              <Button className="profile-trigger">{user.name ?? user.email}（{user.role}）</Button>
             </Dropdown>
           </Layout.Header>
 
@@ -1296,28 +1333,46 @@ function AppShell({
                 }
               />
               <Route path="/profile" element={<ProfilePage user={user} />} />
-              {user.role === 'ADMIN' ? (
+
+              {canUsersRead ? (
                 <>
                   <Route path="/users" element={<UsersListPage currentUser={user} onChanged={() => void 0} />} />
                   <Route path="/users/create" element={<UserCreatePage />} />
                   <Route path="/users/:id" element={<UserShowPage />} />
                   <Route path="/users/:id/edit" element={<UserEditPage />} />
-                  <Route path="/projects" element={<ProjectPage />} />
-                  <Route path="/hr/employees" element={<HrEmployeesPage />} />
-                  <Route
-                    path="/settings/modules"
-                    element={
-                      <ModulesPage
-                        modules={modules}
-                        loading={moduleLoading}
-                        onReload={refreshModules}
-                        onToggle={toggleModule}
-                      />
-                    }
-                  />
-                  <Route path="/audit-logs" element={<AuditLogsPage />} />
                 </>
               ) : null}
+
+              {canProjectRead ? (
+                <Route
+                  path="/projects"
+                  element={<ProjectPage canCreate={canProjectCreate} canUpdate={canProjectUpdate} />}
+                />
+              ) : null}
+
+              {canHrRead ? (
+                <Route
+                  path="/hr/employees"
+                  element={<HrEmployeesPage canCreate={canHrCreate} canUpdate={canHrUpdate} />}
+                />
+              ) : null}
+
+              {canModuleRead ? (
+                <Route
+                  path="/settings/modules"
+                  element={
+                    <ModulesPage
+                      modules={modules}
+                      loading={moduleLoading}
+                      canUpdate={canModuleUpdate}
+                      onReload={refreshModules}
+                      onToggle={toggleModule}
+                    />
+                  }
+                />
+              ) : null}
+
+              {canAuditRead ? <Route path="/audit-logs" element={<AuditLogsPage />} /> : null}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout.Content>
@@ -1399,9 +1454,31 @@ function App() {
     return () => media.removeEventListener('change', handler);
   }, []);
 
+  useEffect(() => {
+    if (!token || !user) return;
+
+    api<AuthUser>('/auth/me', undefined, true)
+      .then((me) => {
+        const mergedUser: AuthUser = {
+          ...user,
+          ...me,
+          username: user.username,
+          name: user.name,
+          roles: me.roles ?? user.roles ?? [],
+          permissions: me.permissions ?? user.permissions ?? [],
+          modules: me.modules ?? user.modules ?? ['core'],
+        };
+        localStorage.setItem('motila_user', JSON.stringify(mergedUser));
+        setUser(mergedUser);
+      })
+      .catch(() => {
+        // token 失效或后端暂不可用时，保持当前本地态，避免刷新即踢出
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   const effectiveSkin = resolveEffectiveSkin(skin, systemPrefersDark);
   const authTheme = getThemeBySkin(effectiveSkin, branding);
-
   const isAuthed = !!token && !!user;
 
   const onSubmitAuth = async (values: { username: string; email?: string; name?: string; password: string }) => {
@@ -1423,9 +1500,21 @@ function App() {
       });
 
       localStorage.setItem('motila_token', data.token);
-      localStorage.setItem('motila_user', JSON.stringify(data.user));
+
+      const me = await api<AuthUser>('/auth/me', undefined, true);
+      const mergedUser: AuthUser = {
+        ...data.user,
+        ...me,
+        username: data.user.username,
+        name: data.user.name,
+        roles: me.roles ?? data.user.roles ?? [],
+        permissions: me.permissions ?? data.user.permissions ?? [],
+        modules: me.modules ?? data.user.modules ?? ['core'],
+      };
+
+      localStorage.setItem('motila_user', JSON.stringify(mergedUser));
       setToken(data.token);
-      setUser(data.user);
+      setUser(mergedUser);
       message.success(mode === 'login' ? '登录成功' : '注册成功');
       authForm.resetFields(['password']);
     } catch (error) {

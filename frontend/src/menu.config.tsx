@@ -4,14 +4,12 @@ import { auditMenuItem } from './audit/audit-menu-item';
 import { hrMenuItem } from './hr-menu-item';
 import { projectMenuItem } from './projects-menu-item';
 
-export type AppRole = 'ADMIN' | 'USER';
-
 export type MenuItemConfig = {
   key: string;
   label: string;
   path: string;
   icon?: ReactNode;
-  roles?: AppRole[];
+  requiredPermissions?: string[];
   moduleCode?: string;
 };
 
@@ -21,7 +19,7 @@ export const menuConfig: MenuItemConfig[] = [
     label: '仪表盘',
     path: '/dashboard',
     icon: <DashboardOutlined />,
-    roles: ['ADMIN', 'USER'],
+    requiredPermissions: ['dashboard.read'],
     moduleCode: 'core',
   },
   {
@@ -29,7 +27,7 @@ export const menuConfig: MenuItemConfig[] = [
     label: '用户管理',
     path: '/users',
     icon: <TeamOutlined />,
-    roles: ['ADMIN'],
+    requiredPermissions: ['users.read'],
     moduleCode: 'users',
   },
   projectMenuItem,
@@ -39,7 +37,7 @@ export const menuConfig: MenuItemConfig[] = [
     label: '模块管理',
     path: '/settings/modules',
     icon: <AppstoreOutlined />,
-    roles: ['ADMIN'],
+    requiredPermissions: ['module.read'],
     moduleCode: 'core',
   },
   {
@@ -47,20 +45,22 @@ export const menuConfig: MenuItemConfig[] = [
     label: '主题设置',
     path: '/settings/theme',
     icon: <BgColorsOutlined />,
-    roles: ['ADMIN', 'USER'],
+    requiredPermissions: ['dashboard.read'],
     moduleCode: 'core',
   },
   auditMenuItem,
 ];
 
-export function buildMenuByRole(role?: AppRole, enabledModules?: string[]) {
+export function buildMenuByAccess(permissions: string[] = [], modules: string[] = []) {
+  const permissionSet = new Set(permissions);
+  const moduleSet = new Set(modules);
+
   return menuConfig.filter((item) => {
-    if (item.moduleCode && enabledModules && !enabledModules.includes(item.moduleCode)) {
+    if (item.moduleCode && !moduleSet.has(item.moduleCode)) {
       return false;
     }
 
-    if (!item.roles || item.roles.length === 0) return true;
-    if (!role) return false;
-    return item.roles.includes(role);
+    if (!item.requiredPermissions || item.requiredPermissions.length === 0) return true;
+    return item.requiredPermissions.every((perm) => permissionSet.has(perm));
   });
 }

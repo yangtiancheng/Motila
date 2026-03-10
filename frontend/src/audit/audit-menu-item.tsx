@@ -6,6 +6,6 @@ export const auditMenuItem: MenuItemConfig = {
   label: '审计日志',
   path: '/audit-logs',
   icon: <FileSearchOutlined />,
-  roles: ['ADMIN'],
+  requiredPermissions: ['audit.read'],
   moduleCode: 'audit',
 };

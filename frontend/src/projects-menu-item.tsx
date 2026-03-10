@@ -6,6 +6,6 @@ export const projectMenuItem: MenuItemConfig = {
   label: '项目管理',
   path: '/projects',
   icon: <DeploymentUnitOutlined />,
-  roles: ['ADMIN'],
+  requiredPermissions: ['project.read'],
   moduleCode: 'project',
 };

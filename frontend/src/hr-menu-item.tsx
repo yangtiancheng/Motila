@@ -6,6 +6,6 @@ export const hrMenuItem: MenuItemConfig = {
   label: '人员管理',
   path: '/hr/employees',
   icon: <IdcardOutlined />,
-  roles: ['ADMIN'],
+  requiredPermissions: ['hr.read'],
   moduleCode: 'hr',
 };
