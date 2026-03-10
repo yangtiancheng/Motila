@@ -86,13 +86,18 @@ export function getThemeBySkin(
   branding: BrandingConfig,
 ): ThemeConfig {
   const base = baseThemeMap[skin];
+  const shouldOverrideBrand = branding.primaryColor !== DEFAULT_BRANDING.primaryColor;
 
   return {
     ...base,
     token: {
       ...(base.token ?? {}),
-      colorPrimary: branding.primaryColor,
-      colorLink: branding.primaryColor,
+      ...(shouldOverrideBrand
+        ? {
+            colorPrimary: branding.primaryColor,
+            colorLink: branding.primaryColor,
+          }
+        : {}),
     },
   };
 }
