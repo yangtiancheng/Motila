@@ -150,6 +150,7 @@ type RoleSummary = {
 };
 
 type RoleFormValues = {
+  userIds?: string[];
   code: string;
   name: string;
   description?: string;
@@ -656,6 +657,9 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [roleForm] = Form.useForm<RoleFormValues>();
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [assignUsersMode, setAssignUsersMode] = useState(false);
 
   const refreshAll = async () => {
     setLoading(true);
@@ -697,12 +701,14 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
 
   const openCreateRole = () => {
     setEditingRole(null);
+    setAssignUsersMode(false);
     roleForm.resetFields();
     setRoleModalOpen(true);
   };
 
   const openEditRole = (role: RoleSummary) => {
     setEditingRole(role);
+    setAssignUsersMode(false);
     roleForm.setFieldsValue({
       code: role.code,
       name: role.name,
@@ -711,10 +717,53 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
     setRoleModalOpen(true);
   };
 
+  const fetchAllUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const data = await api<ListUsersResponse>('/users?page=1&pageSize=0', undefined, true);
+      setUsers(data.data);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const openAssignUsers = async (role: RoleSummary) => {
+    setEditingRole(role);
+    setAssignUsersMode(true);
+    if (users.length === 0) {
+      await fetchAllUsers();
+    }
+    const selectedUserIds = users
+      .filter((item) => item.roles?.includes(role.code))
+      .map((item) => item.id);
+    roleForm.setFieldsValue({
+      code: role.code,
+      name: role.name,
+      description: role.description ?? '',
+      userIds: selectedUserIds,
+    });
+    setRoleModalOpen(true);
+  };
+
   const submitRoleForm = async () => {
     try {
-      const values = await roleForm.validateFields();
       setRoleModalLoading(true);
+
+      if (assignUsersMode && editingRole) {
+        const userIds = roleForm.getFieldValue('userIds') ?? [];
+        await api(`/rbac/roles/${editingRole.code}/users`, {
+          method: 'PUT',
+          body: JSON.stringify({ userIds }),
+        }, true);
+        message.success('角色用户已更新');
+        setRoleModalOpen(false);
+        await refreshAll();
+        return;
+      }
+
+      const values = await roleForm.validateFields();
 
       if (editingRole) {
         await api(`/rbac/roles/${editingRole.code}`, {
@@ -828,6 +877,9 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
                   <Button size="small" onClick={() => openEditRole(role)} disabled={!canUpdate || role.isSystem}>
                     编辑
                   </Button>
+                  <Button size="small" onClick={() => void openAssignUsers(role)} disabled={!canUpdate}>
+                    分配用户
+                  </Button>
                   <Popconfirm
                     title="确认删除该角色？"
                     okText="删除"
@@ -897,36 +949,53 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
       </Card>
 
       <Modal
-        title={editingRole ? '编辑角色' : '新建角色'}
+        title={assignUsersMode ? '分配用户' : editingRole ? '编辑角色' : '新建角色'}
         open={roleModalOpen}
         onCancel={() => setRoleModalOpen(false)}
         onOk={() => void submitRoleForm()}
-        okText={editingRole ? '保存' : '创建'}
+        okText={assignUsersMode ? '保存' : editingRole ? '保存' : '创建'}
         confirmLoading={roleModalLoading}
         okButtonProps={{ disabled: !canUpdate }}
         cancelText="取消"
       >
         <Form form={roleForm} layout="vertical">
-          <Form.Item
-            label="角色编码"
-            name="code"
-            rules={[
-              { required: true, message: '请输入角色编码' },
-              { pattern: /^[A-Z][A-Z0-9_]{1,30}$/, message: '仅支持大写字母/数字/下划线，且以字母开头' },
-            ]}
-          >
-            <Input placeholder="例如：SALES_MANAGER" disabled={!!editingRole} />
-          </Form.Item>
-          <Form.Item
-            label="角色名称"
-            name="name"
-            rules={[{ required: true, message: '请输入角色名称' }]}
-          >
-            <Input placeholder="例如：销售经理" />
-          </Form.Item>
-          <Form.Item label="描述" name="description">
-            <Input.TextArea rows={3} placeholder="可选" />
-          </Form.Item>
+          {assignUsersMode ? (
+            <Form.Item label="分配用户" name="userIds">
+              <Select
+                mode="multiple"
+                placeholder="选择用户"
+                loading={usersLoading}
+                optionFilterProp="label"
+                options={users.map((user) => ({
+                  value: user.id,
+                  label: user.name ? user.name + ' (' + user.username + ')' : user.username,
+                }))}
+              />
+            </Form.Item>
+          ) : (
+            <>
+              <Form.Item
+                label="角色编码"
+                name="code"
+                rules={[
+                  { required: true, message: '请输入角色编码' },
+                  { pattern: /^[A-Z][A-Z0-9_]{1,30}$/, message: '仅支持大写字母/数字/下划线，且以字母开头' },
+                ]}
+              >
+                <Input placeholder="例如：SALES_MANAGER" disabled={!!editingRole} />
+              </Form.Item>
+              <Form.Item
+                label="角色名称"
+                name="name"
+                rules={[{ required: true, message: '请输入角色名称' }]}
+              >
+                <Input placeholder="例如：销售经理" />
+              </Form.Item>
+              <Form.Item label="描述" name="description">
+                <Input.TextArea rows={3} placeholder="可选" />
+              </Form.Item>
+            </>
+          )}
         </Form>
       </Modal>
     </Space>
@@ -1478,8 +1547,10 @@ function AppShell({
   const activeTheme = getThemeBySkin(effectiveSkin, branding);
 
   const menuItems = buildMenuByAccess(user.permissions, Array.from(enabledModuleCodes));
+  const flatMenuItems = menuItems.flatMap((item) => item.children ?? [item]);
   const selectedMenuKey =
-    menuItems.find((item) => location.pathname.startsWith(item.path))?.key ?? menuItems[0]?.key;
+    flatMenuItems.find((item) => item.path && location.pathname.startsWith(item.path))?.key ??
+    flatMenuItems[0]?.key;
 
   const canUsersRead = can('users.read');
   const canProjectRead = can('project.read');
@@ -1546,13 +1617,13 @@ function AppShell({
     } else if (location.pathname.startsWith('/hr/employees')) {
       items.push({ title: '人员管理' });
     } else if (location.pathname.startsWith('/settings/modules')) {
-      items.push({ title: '模块管理' });
+      items.push({ title: '配置' }, { title: '模块管理' });
     } else if (location.pathname.startsWith('/settings/rbac')) {
-      items.push({ title: '权限配置' });
+      items.push({ title: '配置' }, { title: '权限配置' });
     } else if (location.pathname.startsWith('/audit-logs')) {
-      items.push({ title: '审计日志' });
+      items.push({ title: '配置' }, { title: '审计日志' });
     } else if (location.pathname.startsWith('/settings/theme')) {
-      items.push({ title: '主题设置' });
+      items.push({ title: '配置' }, { title: '主题设置' });
     } else if (location.pathname.startsWith('/profile')) {
       items.push({ title: '个人信息' });
     } else {
@@ -1681,15 +1752,24 @@ function AppShell({
           <Menu
             mode="inline"
             selectedKeys={selectedMenuKey ? [selectedMenuKey] : []}
-            items={menuItems.map(
-              (item) =>
-                ({
-                  key: item.key,
-                  icon: item.icon,
-                  label: item.label,
-                  onClick: () => navigate(item.path),
-                }),
-            )}
+            items={menuItems.map((item) => ({
+              key: item.key,
+              icon: item.icon,
+              label: item.label,
+              children: item.children
+                ? item.children.map((child) => ({
+                    key: child.key,
+                    icon: child.icon,
+                    label: child.label,
+                    onClick: () => {
+                      if (child.path) navigate(child.path);
+                    },
+                  }))
+                : undefined,
+              onClick: () => {
+                if (item.path) navigate(item.path);
+              },
+            }))}
           />
         </Layout.Sider>
 

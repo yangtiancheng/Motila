@@ -31,7 +31,8 @@ export class UsersService {
   async findAll(query: ListUsersQueryDto) {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
-    const skip = (page - 1) * pageSize;
+    const fetchAll = query.pageSize === 0;
+    const skip = fetchAll ? 0 : (page - 1) * pageSize;
 
     const where = {
       ...(query.keyword
@@ -60,7 +61,7 @@ export class UsersService {
         },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: pageSize,
+        ...(fetchAll ? {} : { take: pageSize }),
       }),
       this.prisma.user.count({ where }),
     ]);

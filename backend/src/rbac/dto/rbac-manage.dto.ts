@@ -28,6 +28,13 @@ export class UpdateRoleDto {
   description?: string;
 }
 
+export class UpdateRoleUsersDto {
+  @IsArray()
+  @IsString({ each: true })
+  @Type(() => String)
+  userIds!: string[];
+}
+
 export class UpdateUserRolesDto {
   @IsArray()
   @ArrayNotEmpty()

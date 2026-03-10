@@ -7,6 +7,7 @@ import {
   UpdateRoleDto,
   UpdateRoleModulesDto,
   UpdateRolePermissionsDto,
+  UpdateRoleUsersDto,
   UpdateUserRolesDto,
 } from './dto/rbac-manage.dto';
 import { RbacService } from './rbac.service';
@@ -39,6 +40,12 @@ export class RbacController {
   @RequirePermission('rbac.update')
   deleteRole(@Param('roleCode') roleCode: string) {
     return this.rbacService.deleteRole(roleCode);
+  }
+
+  @Put('roles/:roleCode/users')
+  @RequirePermission('rbac.update')
+  updateRoleUsers(@Param('roleCode') roleCode: string, @Body() dto: UpdateRoleUsersDto) {
+    return this.rbacService.updateRoleUsers(roleCode, dto.userIds ?? []);
   }
 
   @Get('permissions')

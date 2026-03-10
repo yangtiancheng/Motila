@@ -106,6 +106,23 @@ export class RbacService implements OnModuleInit {
     return this.listRoles();
   }
 
+  async updateRoleUsers(roleCode: string, userIds: string[]) {
+    const role = await this.prisma.role.findUnique({ where: { code: roleCode } });
+    if (!role) throw new NotFoundException('角色不存在');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userRoleMap.deleteMany({ where: { roleId: role.id } });
+      if (userIds.length > 0) {
+        await tx.userRoleMap.createMany({
+          data: userIds.map((userId) => ({ roleId: role.id, userId })),
+          
+        });
+      }
+    });
+
+    return this.listRoles();
+  }
+
   async listPermissions() {
     return this.prisma.permission.findMany({
       orderBy: [{ moduleCode: 'asc' }, { code: 'asc' }],
