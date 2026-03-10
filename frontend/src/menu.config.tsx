@@ -1,6 +1,8 @@
 import { AppstoreOutlined, BgColorsOutlined, DashboardOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ReactNode } from 'react';
 import { auditMenuItem } from './audit/audit-menu-item';
+import { hrMenuItem } from './hr-menu-item';
+import { projectMenuItem } from './projects-menu-item';
 
 export type AppRole = 'ADMIN' | 'USER';
 
@@ -30,6 +32,8 @@ export const menuConfig: MenuItemConfig[] = [
     roles: ['ADMIN'],
     moduleCode: 'users',
   },
+  projectMenuItem,
+  hrMenuItem,
   {
     key: 'module-settings',
     label: '模块管理',

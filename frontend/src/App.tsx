@@ -501,6 +501,28 @@ function ProfilePage({ user }: { user: AuthUser }) {
   );
 }
 
+function ProjectPage() {
+  return (
+    <Card title="项目管理">
+      <Space direction="vertical" size={8}>
+        <Typography.Text>项目管理模块骨架已就位。</Typography.Text>
+        <Typography.Text type="secondary">后续可扩展：项目台账、看板、里程碑、成员分工。</Typography.Text>
+      </Space>
+    </Card>
+  );
+}
+
+function HrEmployeesPage() {
+  return (
+    <Card title="人员管理">
+      <Space direction="vertical" size={8}>
+        <Typography.Text>人员管理模块骨架已就位。</Typography.Text>
+        <Typography.Text type="secondary">后续可扩展：员工档案、组织架构、岗位与权限映射。</Typography.Text>
+      </Space>
+    </Card>
+  );
+}
+
 function ModulesPage({
   modules,
   loading,
@@ -681,6 +703,10 @@ function AppShell({
         const segments = location.pathname.split('/').filter(Boolean);
         if (segments.length === 2 && segments[1] !== 'users') items.push({ title: '详情' });
       }
+    } else if (location.pathname.startsWith('/projects')) {
+      items.push({ title: '项目管理' });
+    } else if (location.pathname.startsWith('/hr/employees')) {
+      items.push({ title: '人员管理' });
     } else if (location.pathname.startsWith('/settings/modules')) {
       items.push({ title: '模块管理' });
     } else if (location.pathname.startsWith('/audit-logs')) {
@@ -880,6 +906,8 @@ function AppShell({
                   <Route path="/users/create" element={<UserCreatePage />} />
                   <Route path="/users/:id" element={<UserShowPage />} />
                   <Route path="/users/:id/edit" element={<UserEditPage />} />
+                  <Route path="/projects" element={<ProjectPage />} />
+                  <Route path="/hr/employees" element={<HrEmployeesPage />} />
                   <Route
                     path="/settings/modules"
                     element={

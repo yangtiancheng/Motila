@@ -31,6 +31,14 @@ export class ModuleEnabledGuard implements CanActivate {
       await this.modulesService.assertEnabled('audit');
     }
 
+    if (routePath.includes('projects')) {
+      await this.modulesService.assertEnabled('project');
+    }
+
+    if (routePath.includes('/hr') || routePath.includes('hr/')) {
+      await this.modulesService.assertEnabled('hr');
+    }
+
     return true;
   }
 }
