@@ -155,6 +155,7 @@ pm2 save
 - 新增「配置 -> 系统配置」管理页
 - 支持系统名称/标题/Logo/Footer 配置
 - 系统配置支持 Logo 上传（base64），优先级：上传 Logo > logoUrl > 默认 Motila
+- 菜单配置支持 parentKey 父子绑定与 sortOrder 排序
 - 顶部用户信息展示优化为头像 + 昵称（下拉操作保留）
 - 用户管理支持头像字段（avatarUrl），列表/详情页展示
 - 生效规则：同一时间仅一个有效配置
