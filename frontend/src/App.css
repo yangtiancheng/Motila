@@ -344,12 +344,6 @@ body {
   object-fit: contain;
 }
 
-.app-header-title {
-  margin: 0;
-  font-size: 16px;
-  color: #0f172a;
-}
-
 .app-footer {
   text-align: center;
   color: #64748b;

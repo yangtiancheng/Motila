@@ -2040,7 +2040,6 @@ function AppShell({
           <Layout.Header className="app-header">
             <div className="header-left">
               <Breadcrumb items={breadcrumbItems} className="header-breadcrumb" />
-              <Typography.Text className="app-header-title">{headerTitle}</Typography.Text>
             </div>
 
             <Dropdown
