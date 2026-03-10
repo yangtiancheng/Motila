@@ -421,7 +421,7 @@ function UsersListPage({
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
-      <Card title="页面搜索">
+      <Card title="用户管理">
         <Space direction="vertical" style={{ width: '100%' }} size={12}>
           <SchemaQueryBar<UserListQueryValues>
             fields={userListQueryFields}
@@ -433,10 +433,7 @@ function UsersListPage({
               applyFilters(values);
             }}
           />
-          <Space>
-            <Button type="primary" onClick={() => navigate('/users/create')} disabled={!canCreate}>新建用户</Button>
-            <Button onClick={() => applyFilters(userListQueryInitialValues)}>重置</Button>
-          </Space>
+          <Button type="primary" onClick={() => navigate('/users/create')} disabled={!canCreate}>新建用户</Button>
         </Space>
       </Card>
 
