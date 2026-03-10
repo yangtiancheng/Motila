@@ -1060,7 +1060,7 @@ function App() {
                     {mode === 'login' ? '欢迎登录 Motila' : '创建你的 Motila 账号'}
                   </Typography.Title>
                   <Typography.Paragraph className="auth-subtitle">
-                    一个开箱即用的管理系统框架，支持主题配置、权限控制与审计扩展。
+                    一个开箱即用的管理系统框架。
                   </Typography.Paragraph>
                 </div>
 
