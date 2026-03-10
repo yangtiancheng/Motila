@@ -858,12 +858,14 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
           <Form.Item label="系统Logo URL" name="logoUrl">
             <Input placeholder="https://..." />
           </Form.Item>
-          <Form.Item label="系统Logo 上传" name="logoImage" extra="支持 png/jpg/webp，上传后优先于 logoUrl 生效">
+          <Form.Item label="系统Logo 上传" extra="支持 png/jpg/webp，上传后优先于 logoUrl 生效">
             <Space direction="vertical" style={{ width: '100%' }}>
               <Upload beforeUpload={onUploadLogo} showUploadList={false} accept="image/png,image/jpeg,image/webp">
                 <Button>上传图片</Button>
               </Upload>
-              <Input.TextArea rows={3} placeholder="也可粘贴 data:image/...;base64,..." />
+              <Form.Item name="logoImage" noStyle>
+                <Input.TextArea rows={3} placeholder="也可粘贴 data:image/...;base64,..." />
+              </Form.Item>
             </Space>
           </Form.Item>
           <Form.Item shouldUpdate noStyle>

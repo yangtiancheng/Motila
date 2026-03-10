@@ -36,6 +36,7 @@
   - 浏览器标题（`document.title`）
   - 页脚 Footer
 - Logo 优先级：`logoImage` > `logoUrl` > 默认文案 `Motila`
+- 系统配置编辑支持 Logo 上传并可持久化回显
 - Footer 支持部分超链接 Markdown：`[文本](https://example.com)`
 
 ### 2.4 权限与模块
