@@ -24,4 +24,7 @@ export const SYSTEM_PERMISSIONS = [
 
   { code: 'module.read', name: '查看模块配置', moduleCode: 'core' },
   { code: 'module.update', name: '修改模块配置', moduleCode: 'core' },
+
+  { code: 'rbac.read', name: '查看权限配置', moduleCode: 'core' },
+  { code: 'rbac.update', name: '修改权限配置', moduleCode: 'core' },
 ] as const;

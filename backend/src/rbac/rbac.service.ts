@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
@@ -21,6 +22,143 @@ export class RbacService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedSystemRbac();
+  }
+
+  async listRoles() {
+    const roles = await this.prisma.role.findMany({
+      orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
+      include: {
+        userRoles: { select: { userId: true } },
+        permissions: { include: { permission: true } },
+        grants: true,
+      },
+    });
+
+    return roles.map((role) => ({
+      id: role.id,
+      code: role.code,
+      name: role.name,
+      description: role.description,
+      isSystem: role.isSystem,
+      userCount: role.userRoles.length,
+      permissions: role.permissions.map((item) => item.permission.code),
+      modules: role.grants.map((item) => item.moduleCode),
+    }));
+  }
+
+  async listPermissions() {
+    return this.prisma.permission.findMany({
+      orderBy: [{ moduleCode: 'asc' }, { code: 'asc' }],
+      select: {
+        code: true,
+        name: true,
+        moduleCode: true,
+      },
+    });
+  }
+
+  async getUserAccess(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+        role: true,
+      },
+    });
+
+    if (!user) throw new NotFoundException('用户不存在');
+
+    const access = await this.buildAccessContext(userId);
+    return {
+      ...user,
+      roles: access.roleCodes,
+      permissions: access.permissions,
+      modules: access.modules,
+    };
+  }
+
+  async updateUserRoles(userId: string, roleCodes: string[]) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, email: true },
+    });
+    if (!user) throw new NotFoundException('用户不存在');
+
+    const uniqCodes = Array.from(new Set(roleCodes.map((item) => item.trim()).filter(Boolean)));
+    if (uniqCodes.length === 0) throw new BadRequestException('至少分配一个角色');
+
+    const roles = await this.prisma.role.findMany({ where: { code: { in: uniqCodes } } });
+    if (roles.length !== uniqCodes.length) {
+      throw new BadRequestException('存在无效角色编码');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userRoleMap.deleteMany({ where: { userId } });
+      for (const role of roles) {
+        await tx.userRoleMap.create({ data: { userId, roleId: role.id } });
+      }
+    });
+
+    return this.getUserAccess(userId);
+  }
+
+  async updateRolePermissions(roleCode: string, permissionCodes: string[]) {
+    const role = await this.prisma.role.findUnique({ where: { code: roleCode } });
+    if (!role) throw new NotFoundException('角色不存在');
+
+    const uniqCodes = Array.from(new Set(permissionCodes.map((item) => item.trim()).filter(Boolean)));
+    const permissions = uniqCodes.length
+      ? await this.prisma.permission.findMany({ where: { code: { in: uniqCodes } } })
+      : [];
+
+    if (permissions.length !== uniqCodes.length) {
+      throw new BadRequestException('存在无效权限编码');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({ where: { roleId: role.id } });
+      for (const permission of permissions) {
+        await tx.rolePermission.create({
+          data: {
+            roleId: role.id,
+            permissionId: permission.id,
+          },
+        });
+      }
+    });
+
+    return this.listRoles();
+  }
+
+  async updateRoleModules(roleCode: string, moduleCodes: string[]) {
+    const role = await this.prisma.role.findUnique({ where: { code: roleCode } });
+    if (!role) throw new NotFoundException('角色不存在');
+
+    const uniqCodes = Array.from(new Set(moduleCodes.map((item) => item.trim()).filter(Boolean)));
+    const modules = uniqCodes.length
+      ? await this.prisma.featureModule.findMany({ where: { code: { in: uniqCodes } } })
+      : [];
+
+    if (modules.length !== uniqCodes.length) {
+      throw new BadRequestException('存在无效模块编码');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.roleModuleGrant.deleteMany({ where: { roleId: role.id } });
+      for (const module of modules) {
+        await tx.roleModuleGrant.create({
+          data: {
+            roleId: role.id,
+            moduleCode: module.code,
+          },
+        });
+      }
+    });
+
+    return this.listRoles();
   }
 
   async buildAccessContext(userId: string): Promise<UserAccessContext> {

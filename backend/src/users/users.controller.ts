@@ -11,10 +11,10 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
-import { Roles } from '../common/roles.decorator';
-import { RolesGuard } from '../common/roles.guard';
 import type { JwtUser } from '../common/jwt-user.type';
 import { ModuleEnabledGuard } from '../modules/module-enabled.guard';
+import { RequireModule, RequirePermission } from '../rbac/rbac.decorator';
+import { RbacGuard } from '../rbac/rbac.guard';
 import { ChangeMyPasswordDto } from './dto/change-my-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
@@ -22,7 +22,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
-@UseGuards(JwtAuthGuard, RolesGuard, ModuleEnabledGuard)
+@UseGuards(JwtAuthGuard, RbacGuard, ModuleEnabledGuard)
+@RequireModule('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -40,25 +41,25 @@ export class UsersController {
   }
 
   @Get()
-  @Roles('ADMIN')
+  @RequirePermission('users.read')
   findAll(@Query() query: ListUsersQueryDto) {
     return this.usersService.findAll(query);
   }
 
   @Get(':id')
-  @Roles('ADMIN')
+  @RequirePermission('users.read')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
 
   @Post()
-  @Roles('ADMIN')
+  @RequirePermission('users.create')
   create(@Body() dto: CreateUserDto, @CurrentUser() user: JwtUser | undefined) {
     return this.usersService.create(dto, user);
   }
 
   @Patch(':id')
-  @Roles('ADMIN')
+  @RequirePermission('users.update')
   update(
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
@@ -68,7 +69,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN')
+  @RequirePermission('users.delete')
   remove(@Param('id') id: string, @CurrentUser() user: JwtUser | undefined) {
     return this.usersService.remove(id, user);
   }
