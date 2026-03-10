@@ -7,4 +7,5 @@ export const auditMenuItem: MenuItemConfig = {
   path: '/audit-logs',
   icon: <FileSearchOutlined />,
   roles: ['ADMIN'],
+  moduleCode: 'audit',
 };

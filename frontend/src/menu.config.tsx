@@ -1,4 +1,4 @@
-import { BgColorsOutlined, DashboardOutlined, TeamOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, BgColorsOutlined, DashboardOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ReactNode } from 'react';
 import { auditMenuItem } from './audit/audit-menu-item';
 
@@ -10,6 +10,7 @@ export type MenuItemConfig = {
   path: string;
   icon?: ReactNode;
   roles?: AppRole[];
+  moduleCode?: string;
 };
 
 export const menuConfig: MenuItemConfig[] = [
@@ -19,6 +20,7 @@ export const menuConfig: MenuItemConfig[] = [
     path: '/dashboard',
     icon: <DashboardOutlined />,
     roles: ['ADMIN', 'USER'],
+    moduleCode: 'core',
   },
   {
     key: 'users',
@@ -26,6 +28,15 @@ export const menuConfig: MenuItemConfig[] = [
     path: '/users',
     icon: <TeamOutlined />,
     roles: ['ADMIN'],
+    moduleCode: 'users',
+  },
+  {
+    key: 'module-settings',
+    label: '模块管理',
+    path: '/settings/modules',
+    icon: <AppstoreOutlined />,
+    roles: ['ADMIN'],
+    moduleCode: 'core',
   },
   {
     key: 'theme-settings',
@@ -33,12 +44,17 @@ export const menuConfig: MenuItemConfig[] = [
     path: '/settings/theme',
     icon: <BgColorsOutlined />,
     roles: ['ADMIN', 'USER'],
+    moduleCode: 'core',
   },
   auditMenuItem,
 ];
 
-export function buildMenuByRole(role?: AppRole) {
+export function buildMenuByRole(role?: AppRole, enabledModules?: string[]) {
   return menuConfig.filter((item) => {
+    if (item.moduleCode && enabledModules && !enabledModules.includes(item.moduleCode)) {
+      return false;
+    }
+
     if (!item.roles || item.roles.length === 0) return true;
     if (!role) return false;
     return item.roles.includes(role);

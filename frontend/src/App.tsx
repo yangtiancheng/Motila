@@ -17,6 +17,7 @@ import {
   Table,
   Tag,
   Typography,
+  Switch,
 } from 'antd';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -71,6 +72,19 @@ type ListUsersResponse = {
   total: number;
   page: number;
   pageSize: number;
+};
+
+type ModuleStatus = 'NOT_INSTALLED' | 'INSTALLED' | 'ENABLED' | 'DISABLED';
+
+type ModuleItem = {
+  code: string;
+  name: string;
+  description?: string;
+  status: ModuleStatus;
+  isCore: boolean;
+  sortOrder: number;
+  dependencies: Array<{ dependsOnCode: string }>;
+  dependents: Array<{ moduleCode: string }>;
 };
 
 function parseError(error: unknown): string {
@@ -487,6 +501,96 @@ function ProfilePage({ user }: { user: AuthUser }) {
   );
 }
 
+function ModulesPage({
+  modules,
+  loading,
+  onReload,
+  onToggle,
+}: {
+  modules: ModuleItem[];
+  loading: boolean;
+  onReload: () => Promise<void>;
+  onToggle: (module: ModuleItem, nextEnabled: boolean) => Promise<void>;
+}) {
+  const [submittingCode, setSubmittingCode] = useState<string | null>(null);
+
+  return (
+    <Card
+      title="模块管理"
+      extra={
+        <Button loading={loading} onClick={() => void onReload()}>
+          刷新
+        </Button>
+      }
+    >
+      <Table<ModuleItem>
+        rowKey="code"
+        loading={loading}
+        dataSource={modules}
+        pagination={false}
+        columns={[
+          {
+            title: '模块',
+            key: 'module',
+            render: (_value, record) => (
+              <Space direction="vertical" size={2}>
+                <Typography.Text strong>{record.name}</Typography.Text>
+                <Typography.Text type="secondary">{record.code}</Typography.Text>
+              </Space>
+            ),
+          },
+          {
+            title: '说明',
+            dataIndex: 'description',
+            key: 'description',
+            render: (value?: string) => value || '-',
+          },
+          {
+            title: '依赖',
+            key: 'dependencies',
+            render: (_value, record) =>
+              record.dependencies.length > 0
+                ? record.dependencies.map((dep) => dep.dependsOnCode).join(', ')
+                : '-',
+          },
+          {
+            title: '状态',
+            key: 'status',
+            render: (_value, record) => {
+              const color = record.status === 'ENABLED' ? 'green' : record.status === 'DISABLED' ? 'default' : 'orange';
+              return <Tag color={color}>{record.status}</Tag>;
+            },
+          },
+          {
+            title: '启用',
+            key: 'enabled',
+            width: 120,
+            render: (_value, record) => {
+              const checked = record.status === 'ENABLED';
+              const disabled = record.isCore || submittingCode === record.code;
+              return (
+                <Switch
+                  checked={checked}
+                  disabled={disabled}
+                  loading={submittingCode === record.code}
+                  onChange={async (nextEnabled) => {
+                    setSubmittingCode(record.code);
+                    try {
+                      await onToggle(record, nextEnabled);
+                    } finally {
+                      setSubmittingCode(null);
+                    }
+                  }}
+                />
+              );
+            },
+          },
+        ]}
+      />
+    </Card>
+  );
+}
+
 function AppShell({
   user,
   onLogout,
@@ -507,6 +611,9 @@ function AppShell({
   const navigate = useNavigate();
   const brandingFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [modules, setModules] = useState<ModuleItem[]>([]);
+  const [moduleLoading, setModuleLoading] = useState(false);
+
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() =>
     typeof window !== 'undefined' && window.matchMedia
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -521,10 +628,41 @@ function AppShell({
     return () => media.removeEventListener('change', handler);
   }, []);
 
+  const refreshModules = async () => {
+    if (user.role !== 'ADMIN') {
+      setModules([{ code: 'core', name: '系统核心', status: 'ENABLED', isCore: true, sortOrder: 0, dependencies: [], dependents: [] }]);
+      return;
+    }
+
+    setModuleLoading(true);
+    try {
+      const data = await api<ModuleItem[]>('/modules', undefined, true);
+      setModules(data);
+    } catch (error) {
+      message.error(parseError(error));
+      setModules([{ code: 'core', name: '系统核心', status: 'ENABLED', isCore: true, sortOrder: 0, dependencies: [], dependents: [] }]);
+    } finally {
+      setModuleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshModules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.role]);
+
+  const enabledModuleCodes = useMemo(() => {
+    const set = new Set<string>(['core']);
+    modules
+      .filter((item) => item.status === 'ENABLED')
+      .forEach((item) => set.add(item.code));
+    return set;
+  }, [modules]);
+
   const effectiveSkin = resolveEffectiveSkin(skin, systemPrefersDark);
   const activeTheme = getThemeBySkin(effectiveSkin, branding);
 
-  const menuItems = buildMenuByRole(user.role as AppRole);
+  const menuItems = buildMenuByRole(user.role as AppRole, Array.from(enabledModuleCodes));
   const selectedMenuKey =
     menuItems.find((item) => location.pathname.startsWith(item.path))?.key ?? menuItems[0]?.key;
 
@@ -543,6 +681,8 @@ function AppShell({
         const segments = location.pathname.split('/').filter(Boolean);
         if (segments.length === 2 && segments[1] !== 'users') items.push({ title: '详情' });
       }
+    } else if (location.pathname.startsWith('/settings/modules')) {
+      items.push({ title: '模块管理' });
     } else if (location.pathname.startsWith('/audit-logs')) {
       items.push({ title: '审计日志' });
     } else if (location.pathname.startsWith('/settings/theme')) {
@@ -648,6 +788,25 @@ function AppShell({
     { key: 'logout', label: '退出登录', danger: true },
   ];
 
+  const toggleModule = async (module: ModuleItem, nextEnabled: boolean) => {
+    const targetStatus: ModuleStatus = nextEnabled ? 'ENABLED' : 'DISABLED';
+
+    try {
+      await api<ModuleItem>(
+        `/modules/${module.code}/status`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ status: targetStatus }),
+        },
+        true,
+      );
+      message.success(`模块 ${module.name} 已${nextEnabled ? '启用' : '禁用'}`);
+      await refreshModules();
+    } catch (error) {
+      message.error(parseError(error));
+    }
+  };
+
   return (
     <ConfigProvider theme={activeTheme}>
       <Layout className={`app-layout skin-${effectiveSkin}`}>
@@ -721,6 +880,17 @@ function AppShell({
                   <Route path="/users/create" element={<UserCreatePage />} />
                   <Route path="/users/:id" element={<UserShowPage />} />
                   <Route path="/users/:id/edit" element={<UserEditPage />} />
+                  <Route
+                    path="/modules"
+                    element={
+                      <ModulesPage
+                        modules={modules}
+                        loading={moduleLoading}
+                        onReload={refreshModules}
+                        onToggle={toggleModule}
+                      />
+                    }
+                  />
                   <Route path="/audit-logs" element={<AuditLogsPage />} />
                 </>
               ) : null}

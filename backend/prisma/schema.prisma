@@ -23,6 +23,13 @@ enum AuditEntity {
   USER
 }
 
+enum ModuleLifecycleStatus {
+  NOT_INSTALLED
+  INSTALLED
+  ENABLED
+  DISABLED
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -35,15 +42,38 @@ model User {
 }
 
 model AuditLog {
-  id         String      @id @default(cuid())
-  action     AuditAction
-  entity     AuditEntity
-  targetId   String
-  targetName String
+  id          String      @id @default(cuid())
+  action      AuditAction
+  entity      AuditEntity
+  targetId    String
+  targetName  String
   targetEmail String
-  actorId    String
-  actorEmail String
-  actorRole  UserRole
-  detail     String?
-  createdAt  DateTime    @default(now())
+  actorId     String
+  actorEmail  String
+  actorRole   UserRole
+  detail      String?
+  createdAt   DateTime    @default(now())
+}
+
+model FeatureModule {
+  code         String                @id
+  name         String
+  description  String?
+  status       ModuleLifecycleStatus @default(DISABLED)
+  isCore       Boolean               @default(false)
+  sortOrder    Int                   @default(100)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  dependencies ModuleDependency[]    @relation("ModuleDependencies")
+  dependents   ModuleDependency[]    @relation("ModuleDependents")
+}
+
+model ModuleDependency {
+  id            String        @id @default(cuid())
+  moduleCode    String
+  dependsOnCode String
+  module        FeatureModule @relation("ModuleDependencies", fields: [moduleCode], references: [code], onDelete: Cascade)
+  dependsOn     FeatureModule @relation("ModuleDependents", fields: [dependsOnCode], references: [code], onDelete: Cascade)
+
+  @@unique([moduleCode, dependsOnCode])
 }
