@@ -10,6 +10,7 @@
 
 - 用户头像支持上传图片（base64）与预览，展示优先级：avatarImage > avatarUrl
 - 修复系统配置 logoImage 未持久化导致左上角 Logo 不显示的问题
+- 修复权限配置中分配用户报错：`pageSize must not be less than 1`（支持 `pageSize=0` 用于全量拉取）
 - 顶部用户区域改为“头像 + 昵称 + 角色”展示（非按钮样式）
 - 用户管理新增头像字段（avatarUrl），列表与详情页展示
 
