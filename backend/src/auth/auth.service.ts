@@ -114,14 +114,27 @@ export class AuthService {
     }
 
     const where = username && email
-      ? { username, email }
+      ? {
+          username,
+          emailConfig: {
+            is: {
+              emailAddress: email,
+            },
+          },
+        }
       : username
         ? { username }
-        : { email: email! };
+        : {
+            emailConfig: {
+              is: {
+                emailAddress: email!,
+              },
+            },
+          };
 
     const user = await this.prisma.user.findFirst({
       where,
-      select: { id: true, email: true, name: true, username: true },
+      select: { id: true, name: true, username: true },
     });
 
     if (!user) return { ok: false, message: '用户名或邮箱不存在' };
@@ -171,7 +184,10 @@ export class AuthService {
       select: { emailAddress: true },
     });
 
-    const to = targetMailbox?.emailAddress || user.email;
+    const to = targetMailbox?.emailAddress;
+    if (!to) {
+      return { ok: false, message: '用户未配置邮箱，请先完成邮箱配置' };
+    }
 
     await transporter.sendMail({
       from: config.emailAddress,
