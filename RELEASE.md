@@ -2,8 +2,9 @@
 
 > 项目：Motila
 > 维护方式：每次迭代结束更新「已完成」与「下一迭代计划」
-> 更新时间：2026-03-09
+> 更新时间：2026-03-11
 
+- 修复生产域名访问前端报错：Vite 新增 `server.allowedHosts`，允许 `yangtiancheng.cn` 与 `www.yangtiancheng.cn`
 - 新增系统配置 Logo 上传能力（png/jpg/webp），并支持保存为 `logoImage`
 - Logo 展示优先级调整：`logoImage` > `logoUrl` > 默认文案
 - 修复系统配置创建时 `logoUrl` 为空触发 URL 校验报错问题

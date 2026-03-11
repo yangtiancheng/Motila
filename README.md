@@ -50,6 +50,12 @@
   - `sortOrder`（排序）
   - 配置驱动构建树，无需改菜单渲染逻辑
 
+### 2.6 域名访问与 Vite Host 校验
+- 已在前端 `vite.config.ts` 配置：
+  - `server.allowedHosts: ['yangtiancheng.cn', 'www.yangtiancheng.cn']`
+- 解决通过域名访问前端时出现：
+  - `Blocked request. This host ("yangtiancheng.cn") is not allowed.`
+
 ---
 
 ## 3. 目录结构
@@ -168,6 +174,9 @@ pm2 save
 
 4) **头像不显示？**  
 确认 `avatarUrl` 是可公网访问的合法 URL。
+
+5) **域名访问前端提示 host 不允许？**  
+检查 `frontend/vite.config.ts` 的 `server.allowedHosts` 是否包含当前域名；修改后重启前端/PM2 进程。
 
 ---
 
