@@ -2090,6 +2090,7 @@ function ProjectFormPage({
 
   return (
     <Card
+      className="keep-card-head"
       title={mode === 'edit' ? '编辑项目' : '新建项目'}
       extra={
         <Space>
@@ -2148,6 +2149,7 @@ function ProjectShowPage({ canUpdate }: { canUpdate: boolean }) {
 
   return (
     <Card
+      className="keep-card-head"
       title="项目详情"
       loading={loading}
       extra={
@@ -2356,6 +2358,7 @@ function HrEmployeeFormPage({
 
   return (
     <Card
+      className="keep-card-head"
       title={mode === 'edit' ? '编辑员工' : '新建员工'}
       extra={
         <Space>
@@ -2416,6 +2419,7 @@ function HrEmployeeShowPage({ canUpdate }: { canUpdate: boolean }) {
 
   return (
     <Card
+      className="keep-card-head"
       title="员工详情"
       loading={loading}
       extra={

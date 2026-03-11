@@ -538,3 +538,8 @@ body {
 .app-content .ant-picker {
   border-radius: 0 !important;
 }
+
+/* 允许特定页面保留卡片头（显示保存/取消等操作区） */
+.app-content .ant-card.keep-card-head > .ant-card-head {
+  display: flex !important;
+}
