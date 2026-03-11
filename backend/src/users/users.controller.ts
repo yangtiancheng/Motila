@@ -18,6 +18,7 @@ import { RbacGuard } from '../rbac/rbac.guard';
 import { ChangeMyPasswordDto } from './dto/change-my-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -30,6 +31,14 @@ export class UsersController {
   @Get('me')
   me(@CurrentUser() user: JwtUser | undefined) {
     return user;
+  }
+
+  @Patch('me')
+  updateMe(
+    @CurrentUser() user: JwtUser | undefined,
+    @Body() dto: UpdateMyProfileDto,
+  ) {
+    return this.usersService.updateMe(user, dto);
   }
 
   @Patch('me/password')

@@ -1421,6 +1421,13 @@ function ProfilePage({ user }: { user: AuthUser }) {
   const [providerDefaults, setProviderDefaults] = useState<ProviderDefaultsResponse | null>(null);
   const [secretMasked, setSecretMasked] = useState<string>('');
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileForm] = Form.useForm<{
+    username?: string;
+    name?: string;
+    avatarUrl?: string;
+    avatarImage?: string;
+  }>();
 
   const applyProviderDefaults = (provider: EmailProvider) => {
     if (!providerDefaults) return;
@@ -1487,6 +1494,32 @@ function ProfilePage({ user }: { user: AuthUser }) {
     void loadConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    profileForm.setFieldsValue({
+      username: user.username,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      avatarImage: user.avatarImage,
+    });
+  }, [profileForm, user.avatarImage, user.avatarUrl, user.name, user.username]);
+
+  const onSaveProfile = async () => {
+    try {
+      const values = await profileForm.validateFields();
+      setProfileSaving(true);
+      const updated = await api<AuthUser>('/users/me', {
+        method: 'PATCH',
+        body: JSON.stringify(values),
+      }, true);
+      localStorage.setItem('motila_user', JSON.stringify({ ...user, ...updated }));
+      message.success('个人信息已更新，请刷新页面查看最新信息');
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const onSaveEmailConfig = async () => {
     try {
@@ -1559,15 +1592,33 @@ function ProfilePage({ user }: { user: AuthUser }) {
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
-      <Card title="个人信息">
-        <Space direction="vertical" size={8}>
-          <Avatar src={user.avatarImage || user.avatarUrl} size={64}>{(user.name ?? user.email).slice(0, 1)}</Avatar>
-          <Typography.Text>昵称：{user.name ?? '-'}</Typography.Text>
-          <Typography.Text>用户名：{user.username ?? '-'}</Typography.Text>
-          <Typography.Text>邮箱：{user.email}</Typography.Text>
-          <Typography.Text>角色：{user.role}</Typography.Text>
-          <Typography.Text type="secondary">用户详情页（个人视角）</Typography.Text>
-        </Space>
+      <Card
+        title="个人信息"
+        extra={<Button type="primary" onClick={() => void onSaveProfile()} loading={profileSaving}>保存个人信息</Button>}
+      >
+        <Form form={profileForm} layout="vertical">
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <Avatar src={user.avatarImage || user.avatarUrl} size={64}>{(user.name ?? user.email).slice(0, 1)}</Avatar>
+            <Form.Item label="昵称" name="name" rules={[{ required: true, min: 2, message: '昵称至少2位' }]}>
+              <Input style={{ maxWidth: 420 }} />
+            </Form.Item>
+            <Form.Item
+              label="用户名"
+              name="username"
+              rules={[
+                { required: true, min: 4, message: '用户名至少4位' },
+                { pattern: /^[a-zA-Z0-9_]+$/, message: '仅支持字母、数字、下划线' },
+              ]}
+            >
+              <Input style={{ maxWidth: 420 }} />
+            </Form.Item>
+            <Form.Item label="头像地址" name="avatarUrl">
+              <Input style={{ maxWidth: 420 }} placeholder="https://..." />
+            </Form.Item>
+            <Typography.Text>角色：{user.role}</Typography.Text>
+            <Typography.Text type="secondary">邮箱请在下方“邮箱配置”中维护。</Typography.Text>
+          </Space>
+        </Form>
       </Card>
 
       <Card

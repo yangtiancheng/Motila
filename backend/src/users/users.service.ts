@@ -11,6 +11,7 @@ import type { JwtUser } from '../common/jwt-user.type';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SYSTEM_SUPER_ADMIN } from './system-admin.constants';
 
@@ -274,6 +275,62 @@ export class UsersService {
         detail: details.join('; ') || '更新用户信息',
       });
     }
+
+    return updated;
+  }
+
+
+  async updateMe(currentUser: JwtUser | undefined, dto: UpdateMyProfileDto) {
+    if (!currentUser?.sub) {
+      throw new ForbiddenException('未授权访问');
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { id: currentUser.sub },
+      select: { id: true, username: true, name: true, avatarUrl: true, avatarImage: true, email: true, role: true },
+    });
+
+    if (!existing) throw new NotFoundException('用户不存在');
+
+    if (dto.username && dto.username !== existing.username) {
+      const duplicated = await this.prisma.user.findFirst({
+        where: {
+          username: dto.username,
+          NOT: { id: currentUser.sub },
+        },
+      });
+      if (duplicated) throw new ConflictException('用户名已存在');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: currentUser.sub },
+      data: {
+        ...(dto.username ? { username: dto.username } : {}),
+        ...(dto.name ? { name: dto.name } : {}),
+        ...(dto.avatarUrl ? { avatarUrl: dto.avatarUrl } : {}),
+        ...(dto.avatarImage ? { avatarImage: dto.avatarImage } : {}),
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        avatarImage: true,
+        role: true,
+      },
+    });
+
+    await this.auditService.log({
+      action: 'USER_UPDATE',
+      targetId: updated.id,
+      targetName: updated.name,
+      targetEmail: updated.email,
+      actorId: currentUser.sub,
+      actorEmail: currentUser.email,
+      actorRole: currentUser.role,
+      detail: '用户修改了个人资料',
+    });
 
     return updated;
   }

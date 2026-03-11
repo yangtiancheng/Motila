@@ -155,7 +155,7 @@ export class AuthService {
       text: `你好${user.name ? `，${user.name}` : ''}，\n\n你的 Motila 临时密码为：${tempPassword}\n请登录后立即在个人信息中修改密码。\n\n（系统自动发送，请勿回复）`,
     });
 
-    return { ok: true, message: '如果账号存在，重置邮件已发送' };
+    return { ok: true, message: '重置邮件已发送' };
   }
 
   private generateTempPassword(length = 10) {
