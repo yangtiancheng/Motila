@@ -142,6 +142,9 @@ export class AuthService {
       host: config.smtpHost,
       port: config.smtpPort,
       secure: config.smtpSecure,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
       auth: {
         user: config.emailAddress,
         pass: config.secret,

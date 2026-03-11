@@ -117,6 +117,9 @@ export class EmailConfigService {
       host: payload.smtpHost,
       port: payload.smtpPort,
       secure: payload.smtpSecure,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
       auth: {
         user: payload.emailAddress,
         pass: payload.secret,
