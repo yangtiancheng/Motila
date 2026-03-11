@@ -56,7 +56,7 @@ export class SystemConfigService {
           name: payload.name ?? existing.name,
           title: payload.title ?? existing.title,
           logoUrl: payload.logoUrl ?? null,
-          logoImage: payload.logoImage === undefined ? existing.logoImage : payload.logoImage,
+          logoImage: payload.removeLogoImage ? null : payload.logoImage === undefined ? existing.logoImage : payload.logoImage,
           footerText: payload.footerText ?? null,
           isActive,
         },

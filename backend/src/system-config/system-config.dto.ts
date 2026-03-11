@@ -47,6 +47,10 @@ export class UpdateSystemConfigDto {
   logoImage?: string | null;
 
   @IsOptional()
+  @IsBoolean()
+  removeLogoImage?: boolean;
+
+  @IsOptional()
   @IsString()
   @Length(0, 200)
   footerText?: string;

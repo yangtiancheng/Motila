@@ -39,7 +39,11 @@
 - 编辑体验优化：
   - 编辑/新建改为页面内标准编辑区（非弹窗）
   - 支持一键删除已上传 Logo 图片（清空 `logoImage`）
+  - 支持手动清空 `logoImage` 文本后保存删除
 - Footer 支持部分超链接 Markdown：`[文本](https://example.com)`
+- 后端 body limit：`2mb`（支持 base64 Logo 上传）
+- 登录页浏览器标题：优先使用系统配置生效项 `title`，无配置时为 `Welcome to Motila`
+- 首屏默认标题：`index.html` 默认值已改为 `Welcome to Motila`（避免先显示 `frontend` 再切换）
 
 - RBAC 分配用户弹窗支持全量用户拉取（`pageSize=0`），避免分页校验报错
 - 新增权限点：`settings.read`、`settings.update`
