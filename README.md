@@ -58,8 +58,12 @@
 ### 2.6 域名访问与 Vite Host 校验
 - 已在前端 `vite.config.ts` 配置：
   - `server.allowedHosts: ['yangtiancheng.cn', 'www.yangtiancheng.cn']`
+- 本地开发已增加 Vite 代理：
+  - 前端统一请求 `/api/*`
+  - Vite 自动转发到 `http://127.0.0.1:3000/*`
 - 解决通过域名访问前端时出现：
   - `Blocked request. This host ("yangtiancheng.cn") is not allowed.`
+- 避免本地登录请求命中 `/auth/login` 导致 404（统一改为 `/api/auth/login` 链路）
 
 ---
 

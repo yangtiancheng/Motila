@@ -2,7 +2,7 @@ import { Card, Table, Tag, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import type { AuditItem } from './audit.types';
 
-const API_BASE = `http://${window.location.hostname}:3000`;
+const API_BASE = '/api';
 
 function actionLabel(action: AuditItem['action']) {
   switch (action) {
