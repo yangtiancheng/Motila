@@ -1,6 +1,6 @@
 import { EmployeeStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 
 export class ListEmployeesQueryDto {
   @IsOptional()
@@ -75,4 +75,11 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsEnum(EmployeeStatus)
   status?: EmployeeStatus;
+}
+
+export class BatchDeleteEmployeesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  ids!: string[];
 }

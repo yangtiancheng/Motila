@@ -1619,7 +1619,7 @@ function ProfilePage({ user }: { user: AuthUser }) {
               <Input style={{ maxWidth: 420 }} placeholder="https://..." />
             </Form.Item>
             <Typography.Text>角色：{user.role}</Typography.Text>
-            <Typography.Text type="secondary">邮箱请在下方“邮箱配置”中维护。</Typography.Text>
+            <Typography.Text type="secondary">邮箱请在下方"邮箱配置"中维护。</Typography.Text>
           </Space>
         </Form>
       </Card>
@@ -1711,13 +1711,14 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState<ProjectItem[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<ProjectStatus | undefined>(undefined);
   const [editing, setEditing] = useState<ProjectItem | null>(null);
-  const [open, setOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [form] = Form.useForm<{
     name: string;
     code: string;
@@ -1750,10 +1751,11 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
   const openCreate = () => {
     setEditing(null);
     form.setFieldsValue({ name: '', code: '', description: '', status: 'PLANNING' });
-    setOpen(true);
+    setFormOpen(true);
   };
 
   const openEdit = (record: ProjectItem) => {
+    if (!canUpdate) return;
     setEditing(record);
     form.setFieldsValue({
       name: record.name,
@@ -1761,7 +1763,50 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
       description: record.description,
       status: record.status,
     });
-    setOpen(true);
+    setFormOpen(true);
+  };
+
+  const submitForm = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+      if (editing) {
+        await api(`/projects/${editing.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(values),
+        }, true);
+        message.success('项目已更新');
+      } else {
+        await api('/projects', {
+          method: 'POST',
+          body: JSON.stringify(values),
+        }, true);
+        message.success('项目已创建');
+      }
+      setFormOpen(false);
+      setEditing(null);
+      setSelectedRowKeys([]);
+      void fetchRows();
+    } catch (error) {
+      if (error instanceof Error) message.error(parseError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const batchDelete = async () => {
+    if (!selectedRowKeys.length) return;
+    try {
+      await api('/projects/batch-delete', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids: selectedRowKeys }),
+      }, true);
+      message.success('批量删除完成');
+      setSelectedRowKeys([]);
+      void fetchRows();
+    } catch (error) {
+      message.error(parseError(error));
+    }
   };
 
   return (
@@ -1799,10 +1844,22 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
       </Card>
 
       <Card>
+        <Space style={{ marginBottom: 12 }}>
+          <Button danger disabled={!selectedRowKeys.length || !canUpdate} onClick={() => void batchDelete()}>批量删除</Button>
+          <Button disabled>批量复制（暂未实现）</Button>
+          <Button disabled>批量失效（暂未实现）</Button>
+        </Space>
         <Table<ProjectItem>
           rowKey="id"
           loading={loading}
           dataSource={rows}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+          }}
+          onRow={(record) => ({
+            onClick: () => openEdit(record),
+          })}
           columns={[
             { title: '项目名称', dataIndex: 'name' },
             { title: '项目编码', dataIndex: 'code' },
@@ -1812,12 +1869,6 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
               render: (v: ProjectStatus) => <Tag>{v}</Tag>,
             },
             { title: '说明', dataIndex: 'description', render: (v?: string) => v || '-' },
-            {
-              title: '操作',
-              render: (_, record) => (
-                <Button size="small" onClick={() => openEdit(record)} disabled={!canUpdate}>编辑</Button>
-              ),
-            },
           ]}
           pagination={{
             current: page,
@@ -1832,60 +1883,43 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
         />
       </Card>
 
-      <Modal
-        title={editing ? '编辑项目' : '新建项目'}
-        open={open}
-        onCancel={() => setOpen(false)}
-        onOk={async () => {
-          try {
-            const values = await form.validateFields();
-            setSaving(true);
-            if (editing) {
-              await api(`/projects/${editing.id}`, {
-                method: 'PATCH',
-                body: JSON.stringify(values),
-              }, true);
-              message.success('项目已更新');
-            } else {
-              await api('/projects', {
-                method: 'POST',
-                body: JSON.stringify(values),
-              }, true);
-              message.success('项目已创建');
-            }
-            setOpen(false);
-            void fetchRows();
-          } catch (error) {
-            if (error instanceof Error) message.error(parseError(error));
-          } finally {
-            setSaving(false);
+      {formOpen ? (
+        <Card
+          title={editing ? '编辑项目' : '新建项目'}
+          extra={
+            <Space>
+              <Button onClick={() => { setFormOpen(false); setEditing(null); }}>取消</Button>
+              <Button type="primary" loading={saving} onClick={() => void submitForm()}>{editing ? '保存' : '创建'}</Button>
+            </Space>
           }
-        }}
-        confirmLoading={saving}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item label="项目名称" name="name" rules={[{ required: true, min: 2 }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="项目编码" name="code" rules={[{ required: true, min: 2 }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="状态" name="status" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { label: '规划中', value: 'PLANNING' },
-                { label: '进行中', value: 'ACTIVE' },
-                { label: '暂停', value: 'ON_HOLD' },
-                { label: '完成', value: 'DONE' },
-                { label: '归档', value: 'ARCHIVED' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item label="说明" name="description">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-        </Form>
-      </Modal>
+        >
+          <Form form={form} layout="vertical">
+            <div className="grid-form" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
+              <Form.Item label="项目名称" name="name" rules={[{ required: true, min: 2 }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item label="项目编码" name="code" rules={[{ required: true, min: 2 }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item label="状态" name="status" rules={[{ required: true }]}>
+                <Select
+                  options={[
+                    { label: '规划中', value: 'PLANNING' },
+                    { label: '进行中', value: 'ACTIVE' },
+                    { label: '暂停', value: 'ON_HOLD' },
+                    { label: '完成', value: 'DONE' },
+                    { label: '归档', value: 'ARCHIVED' },
+                  ]}
+                />
+              </Form.Item>
+              <div />
+              <Form.Item label="说明" name="description" style={{ gridColumn: 'span 2' }}>
+                <Input.TextArea rows={3} />
+              </Form.Item>
+            </div>
+          </Form>
+        </Card>
+      ) : null}
     </Space>
   );
 }
@@ -1895,13 +1929,14 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState<EmployeeItem[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<EmployeeStatus | undefined>(undefined);
   const [editing, setEditing] = useState<EmployeeItem | null>(null);
-  const [open, setOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [form] = Form.useForm<{
     name: string;
     email: string;
@@ -1936,13 +1971,57 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
   const openCreate = () => {
     setEditing(null);
     form.setFieldsValue({ name: '', email: '', phone: '', department: '', title: '', status: 'ACTIVE' });
-    setOpen(true);
+    setFormOpen(true);
   };
 
   const openEdit = (record: EmployeeItem) => {
+    if (!canUpdate) return;
     setEditing(record);
     form.setFieldsValue(record);
-    setOpen(true);
+    setFormOpen(true);
+  };
+
+  const submitForm = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+      if (editing) {
+        await api(`/hr/employees/${editing.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(values),
+        }, true);
+        message.success('员工已更新');
+      } else {
+        await api('/hr/employees', {
+          method: 'POST',
+          body: JSON.stringify(values),
+        }, true);
+        message.success('员工已创建');
+      }
+      setFormOpen(false);
+      setEditing(null);
+      setSelectedRowKeys([]);
+      void fetchRows();
+    } catch (error) {
+      if (error instanceof Error) message.error(parseError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const batchDelete = async () => {
+    if (!selectedRowKeys.length) return;
+    try {
+      await api('/hr/employees/batch-delete', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids: selectedRowKeys }),
+      }, true);
+      message.success('批量删除完成');
+      setSelectedRowKeys([]);
+      void fetchRows();
+    } catch (error) {
+      message.error(parseError(error));
+    }
   };
 
   return (
@@ -1977,10 +2056,22 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
       </Card>
 
       <Card>
+        <Space style={{ marginBottom: 12 }}>
+          <Button danger disabled={!selectedRowKeys.length || !canUpdate} onClick={() => void batchDelete()}>批量删除</Button>
+          <Button disabled>批量复制（暂未实现）</Button>
+          <Button disabled>批量失效（暂未实现）</Button>
+        </Space>
         <Table<EmployeeItem>
           rowKey="id"
           loading={loading}
           dataSource={rows}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+          }}
+          onRow={(record) => ({
+            onClick: () => openEdit(record),
+          })}
           columns={[
             { title: '姓名', dataIndex: 'name' },
             { title: '邮箱', dataIndex: 'email' },
@@ -1988,12 +2079,6 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
             { title: '岗位', dataIndex: 'title', render: (v?: string) => v || '-' },
             { title: '电话', dataIndex: 'phone', render: (v?: string) => v || '-' },
             { title: '状态', dataIndex: 'status', render: (v: EmployeeStatus) => <Tag>{v}</Tag> },
-            {
-              title: '操作',
-              render: (_, record) => (
-                <Button size="small" onClick={() => openEdit(record)} disabled={!canUpdate}>编辑</Button>
-              ),
-            },
           ]}
           pagination={{
             current: page,
@@ -2008,63 +2093,45 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
         />
       </Card>
 
-      <Modal
-        title={editing ? '编辑员工' : '新建员工'}
-        open={open}
-        onCancel={() => setOpen(false)}
-        onOk={async () => {
-          try {
-            const values = await form.validateFields();
-            setSaving(true);
-            if (editing) {
-              await api(`/hr/employees/${editing.id}`, {
-                method: 'PATCH',
-                body: JSON.stringify(values),
-              }, true);
-              message.success('员工已更新');
-            } else {
-              await api('/hr/employees', {
-                method: 'POST',
-                body: JSON.stringify(values),
-              }, true);
-              message.success('员工已创建');
-            }
-            setOpen(false);
-            void fetchRows();
-          } catch (error) {
-            if (error instanceof Error) message.error(parseError(error));
-          } finally {
-            setSaving(false);
+      {formOpen ? (
+        <Card
+          title={editing ? '编辑员工' : '新建员工'}
+          extra={
+            <Space>
+              <Button onClick={() => { setFormOpen(false); setEditing(null); }}>取消</Button>
+              <Button type="primary" loading={saving} onClick={() => void submitForm()}>{editing ? '保存' : '创建'}</Button>
+            </Space>
           }
-        }}
-        confirmLoading={saving}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item label="姓名" name="name" rules={[{ required: true, min: 2 }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="电话" name="phone">
-            <Input />
-          </Form.Item>
-          <Form.Item label="部门" name="department">
-            <Input />
-          </Form.Item>
-          <Form.Item label="岗位" name="title">
-            <Input />
-          </Form.Item>
-          <Form.Item label="状态" name="status" rules={[{ required: true }]}>
-            <Select
-              options={[
-                { label: '在职', value: 'ACTIVE' },
-                { label: '离职', value: 'INACTIVE' },
-              ]}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
+        >
+          <Form form={form} layout="vertical">
+            <div className="grid-form" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
+              <Form.Item label="姓名" name="name" rules={[{ required: true, min: 2 }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
+                <Input />
+              </Form.Item>
+              <Form.Item label="状态" name="status" rules={[{ required: true }]}> 
+                <Select
+                  options={[
+                    { label: '在职', value: 'ACTIVE' },
+                    { label: '离职', value: 'INACTIVE' },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item label="电话" name="phone">
+                <Input />
+              </Form.Item>
+              <Form.Item label="部门" name="department" style={{ gridColumn: 'span 2' }}>
+                <Input />
+              </Form.Item>
+              <Form.Item label="岗位" name="title" style={{ gridColumn: 'span 2' }}>
+                <Input />
+              </Form.Item>
+            </div>
+          </Form>
+        </Card>
+      ) : null}
     </Space>
   );
 }

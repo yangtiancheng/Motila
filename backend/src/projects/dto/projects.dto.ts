@@ -1,6 +1,6 @@
 import { ProjectStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 
 export class ListProjectsQueryDto {
   @IsOptional()
@@ -77,4 +77,11 @@ export class UpdateProjectDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+}
+
+export class BatchDeleteProjectsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  ids!: string[];
 }

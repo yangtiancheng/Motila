@@ -85,4 +85,11 @@ export class HrService {
       },
     });
   }
+
+  async deleteMany(ids: string[]) {
+    const result = await this.prisma.employee.deleteMany({
+      where: { id: { in: ids } },
+    });
+    return { count: result.count };
+  }
 }

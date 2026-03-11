@@ -84,4 +84,11 @@ export class ProjectsService {
       },
     });
   }
+
+  async deleteMany(ids: string[]) {
+    const result = await this.prisma.project.deleteMany({
+      where: { id: { in: ids } },
+    });
+    return { count: result.count };
+  }
 }

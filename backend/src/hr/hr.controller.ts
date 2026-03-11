@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import { ModuleEnabledGuard } from '../modules/module-enabled.guard';
 import { RequireModule, RequirePermission } from '../rbac/rbac.decorator';
 import { RbacGuard } from '../rbac/rbac.guard';
-import { CreateEmployeeDto, ListEmployeesQueryDto, UpdateEmployeeDto } from './dto/hr.dto';
+import { BatchDeleteEmployeesDto, CreateEmployeeDto, ListEmployeesQueryDto, UpdateEmployeeDto } from './dto/hr.dto';
 import { HrService } from './hr.service';
 
 @Controller('hr')
@@ -34,5 +34,11 @@ export class HrController {
   @RequirePermission('hr.update')
   update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
     return this.hrService.update(id, dto);
+  }
+
+  @Delete('employees/batch-delete')
+  @RequirePermission('hr.update')
+  batchDelete(@Body() dto: BatchDeleteEmployeesDto) {
+    return this.hrService.deleteMany(dto.ids);
   }
 }
