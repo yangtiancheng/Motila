@@ -85,6 +85,28 @@ body {
   color: #64748b;
 }
 
+.mobile-menu-button {
+  font-size: 18px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+.mobile-menu-drawer .ant-drawer-header {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.mobile-menu-drawer .ant-drawer-title {
+  font-weight: 700;
+}
+
+.mobile-menu-drawer .ant-menu {
+  border-inline-end: 0;
+}
+
 .theme-settings-grid {
   display: grid;
   gap: 14px;
@@ -331,16 +353,32 @@ body {
 }
 
 @media (max-width: 760px) {
-  .app-layout .ant-layout-sider {
-    width: 0 !important;
-    min-width: 0 !important;
-    flex: 0 0 0 !important;
-    overflow: hidden;
+  .app-header {
+    min-height: 56px;
+    padding: 8px 10px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
 
-  .app-header {
-    flex-direction: column;
-    align-items: flex-start;
+  .header-left {
+    gap: 8px;
+  }
+
+  .header-breadcrumb {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-summary {
+    padding: 4px 6px;
+    gap: 6px;
+  }
+
+  .profile-summary-text {
+    display: none;
   }
 
   .theme-settings-row {

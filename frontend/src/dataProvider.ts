@@ -14,7 +14,7 @@ import type {
   UpdateResponse,
 } from '@refinedev/core';
 
-const API_BASE = `http://${window.location.hostname}:3000`;
+const API_BASE = '/api';
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('motila_token');

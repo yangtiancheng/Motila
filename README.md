@@ -45,6 +45,11 @@
 ### 2.5 界面与导航
 - 主题皮肤：business / tech / dark / auto
 - 顶部用户信息改为 **头像 + 昵称 + 角色**（非按钮风格，下拉菜单保留）
+- 移动端导航优化：
+  - 小屏隐藏左侧 Sider
+  - 顶部提供菜单按钮（☰）
+  - 点击后以 Drawer 抽屉形式展示完整菜单
+  - 点击菜单项自动关闭抽屉
 - 菜单配置支持：
   - `parentKey`（父子绑定）
   - `sortOrder`（排序）
@@ -53,8 +58,12 @@
 ### 2.6 域名访问与 Vite Host 校验
 - 已在前端 `vite.config.ts` 配置：
   - `server.allowedHosts: ['yangtiancheng.cn', 'www.yangtiancheng.cn']`
+- 本地开发已增加 Vite 代理：
+  - 前端统一请求 `/api/*`
+  - Vite 自动转发到 `http://127.0.0.1:3000/*`
 - 解决通过域名访问前端时出现：
   - `Blocked request. This host ("yangtiancheng.cn") is not allowed.`
+- 避免本地登录请求命中 `/auth/login` 导致 404（统一改为 `/api/auth/login` 链路）
 
 ---
 
