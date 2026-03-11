@@ -466,3 +466,80 @@ body {
   color: inherit;
   text-decoration: underline;
 }
+
+/* 统一卡片头：隐藏默认标题，保留筛选/操作区 */
+.ant-card .ant-card-head-title {
+  display: none;
+}
+
+.ant-card .ant-card-head {
+  min-height: 48px;
+}
+
+.ant-card .ant-card-extra {
+  margin-inline-start: 0;
+  width: 100%;
+}
+
+/* 列表页容器贴合主内容区：去掉 Space 默认留白 */
+.app-content > .ant-space.ant-space-vertical {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.app-content > .ant-space.ant-space-vertical > .ant-space-item {
+  margin: 0 !important;
+}
+
+/* 按需求：删除框架筛选块头部容器（ant-card-head） */
+.app-content .ant-card .ant-card-head {
+  display: none !important;
+}
+
+.app-content .ant-card .ant-card-body {
+  padding-top: 16px;
+}
+
+/* 按需求：ant-space-item 不要圆角 */
+.app-content .ant-space-item {
+  border-radius: 0 !important;
+}
+
+/* 框架层列表页紧凑化（按最新要求） */
+.app-content {
+  padding: 0 !important;
+}
+
+.app-content .ant-space.ant-space-vertical {
+  gap: 8px !important;
+}
+
+.app-content .ant-space.ant-space-vertical > .ant-space-item {
+  margin-bottom: 0 !important;
+}
+
+/* 表格单元格内边距缩小约一半 */
+.app-content .ant-table-wrapper .ant-table-thead > tr > th,
+.app-content .ant-table-wrapper .ant-table-tbody > tr > td {
+  padding: 8px 8px !important;
+}
+
+/* 去掉列表区域所有圆角 */
+.app-content .ant-card,
+.app-content .ant-card-head,
+.app-content .ant-card-body,
+.app-content .ant-table-container,
+.app-content .ant-table,
+.app-content .ant-btn,
+.app-content .ant-input,
+.app-content .ant-input-affix-wrapper,
+.app-content .ant-select-selector,
+.app-content .ant-picker {
+  border-radius: 0 !important;
+}
+
+/* 允许特定页面保留卡片头（显示保存/取消等操作区） */
+.app-content .ant-card.keep-card-head > .ant-card-head {
+  display: flex !important;
+}

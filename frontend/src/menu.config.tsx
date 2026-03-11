@@ -52,6 +52,15 @@ const menuConfigRaw: MenuItemConfig[] = [
     sortOrder: 30,
   },
   {
+    key: 'mail-center',
+    label: '发件中心',
+    path: '/emails/send',
+    icon: <DeploymentUnitOutlined />,
+    requiredPermissions: ['dashboard.read'],
+    moduleCode: 'core',
+    sortOrder: 35,
+  },
+  {
     key: 'settings',
     label: '配置',
     icon: <SettingOutlined />,

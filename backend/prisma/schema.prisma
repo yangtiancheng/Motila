@@ -50,18 +50,20 @@ enum EmployeeStatus {
 }
 
 model User {
-  id           String          @id @default(cuid())
-  username     String          @unique
-  email        String          @unique
-  name         String
-  avatarUrl    String?
-  avatarImage  String?
-  passwordHash String
-  role         UserRole        @default(USER)
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  roles        UserRoleMap[]
-  emailConfig  UserEmailConfig?
+  id            String          @id @default(cuid())
+  username      String          @unique
+  email         String          @unique
+  name          String
+  avatarUrl     String?
+  avatarImage   String?
+  passwordHash  String
+  role          UserRole        @default(USER)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  roles         UserRoleMap[]
+  emailConfig   UserEmailConfig?
+  emailSendLogs EmailSendLog[]
+  emailInboxes  EmailInbox[]
 }
 
 model AuditLog {
@@ -203,6 +205,37 @@ model UserEmailConfig {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailSendLog {
+  id         String   @id @default(cuid())
+  userId     String
+  to         String
+  subject    String
+  content    String
+  status     String   @default("SUCCESS")
+  error      String?
+  sentAt     DateTime @default(now())
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailInbox {
+  id          String   @id @default(cuid())
+  userId      String
+  messageId   String
+  folder      String   @default("INBOX")
+  fromAddress String?
+  toAddress   String?
+  subject     String?
+  textBody    String?
+  htmlBody    String?
+  receivedAt  DateTime?
+  syncedAt    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
 }
 
 model SystemConfig {

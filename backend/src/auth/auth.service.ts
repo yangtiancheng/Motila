@@ -114,21 +114,49 @@ export class AuthService {
     }
 
     const where = username && email
-      ? { username, email }
+      ? {
+          username,
+          emailConfig: {
+            is: {
+              emailAddress: email,
+            },
+          },
+        }
       : username
         ? { username }
-        : { email: email! };
+        : {
+            emailConfig: {
+              is: {
+                emailAddress: email!,
+              },
+            },
+          };
 
     const user = await this.prisma.user.findFirst({
       where,
-      select: { id: true, email: true, name: true, username: true },
+      select: { id: true, name: true, username: true },
     });
 
     if (!user) return { ok: false, message: '用户名或邮箱不存在' };
 
-    const config = await this.emailConfigService.getConfigWithSecret(user.id);
+    const configOwner = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ username: 'admin' }, { role: UserRole.ADMIN }],
+        emailConfig: {
+          isNot: null,
+        },
+      },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (!configOwner?.id) {
+      return { ok: false, message: '管理员邮箱未配置，请联系管理员处理' };
+    }
+
+    const config = await this.emailConfigService.getConfigWithSecret(configOwner.id);
     if (!config?.secret) {
-      return { ok: false, message: '未配置可用邮箱，请联系管理员重置密码' };
+      return { ok: false, message: '管理员邮箱未配置，请联系管理员处理' };
     }
 
     const tempPassword = this.generateTempPassword();
@@ -142,15 +170,28 @@ export class AuthService {
       host: config.smtpHost,
       port: config.smtpPort,
       secure: config.smtpSecure,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
       auth: {
         user: config.emailAddress,
         pass: config.secret,
       },
     });
 
+    const targetMailbox = await this.prisma.userEmailConfig.findUnique({
+      where: { userId: user.id },
+      select: { emailAddress: true },
+    });
+
+    const to = targetMailbox?.emailAddress;
+    if (!to) {
+      return { ok: false, message: '用户未配置邮箱，请先完成邮箱配置' };
+    }
+
     await transporter.sendMail({
       from: config.emailAddress,
-      to: user.email,
+      to,
       subject: '[Motila] 密码重置通知',
       text: `你好${user.name ? `，${user.name}` : ''}，\n\n你的 Motila 临时密码为：${tempPassword}\n请登录后立即在个人信息中修改密码。\n\n（系统自动发送，请勿回复）`,
     });

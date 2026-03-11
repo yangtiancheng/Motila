@@ -10,6 +10,7 @@ import { RbacModule } from './rbac/rbac.module';
 import { UsersModule } from './users/users.module';
 import { SystemConfigModule } from './system-config/system-config.module';
 import { EmailConfigModule } from './email-config/email-config.module';
+import { EmailsModule } from './emails/emails.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { EmailConfigModule } from './email-config/email-config.module';
     ProjectsModule,
     HrModule,
     EmailConfigModule,
+    EmailsModule,
   ],
   controllers: [AppController],
 })

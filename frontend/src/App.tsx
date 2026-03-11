@@ -14,6 +14,7 @@ import {
   Layout,
   Menu,
   Modal,
+  Descriptions,
   Popconfirm,
   Select,
   Space,
@@ -178,6 +179,43 @@ type EmployeeItem = {
 
 type ListEmployeesResponse = {
   data: EmployeeItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type EmailSendLogItem = {
+  id: string;
+  to: string;
+  subject: string;
+  content: string;
+  status: string;
+  error?: string;
+  sentAt: string;
+  createdAt: string;
+};
+
+type ListEmailSendLogsResponse = {
+  data: EmailSendLogItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+type EmailInboxItem = {
+  id: string;
+  messageId: string;
+  fromAddress?: string;
+  toAddress?: string;
+  subject?: string;
+  textBody?: string;
+  htmlBody?: string;
+  receivedAt?: string;
+  createdAt: string;
+};
+
+type ListEmailInboxResponse = {
+  data: EmailInboxItem[];
   total: number;
   page: number;
   pageSize: number;
@@ -391,7 +429,7 @@ function UsersListPage({
   canUpdate: boolean;
   canDelete: boolean;
 }) {
-  const { message } = AntdApp.useApp();
+  const { message, modal } = AntdApp.useApp();
   const navigate = useNavigate();
 
   const { filters, page, pageSize, setPage, setPageSize, applyFilters } = useListState<UserListQueryValues>(
@@ -429,18 +467,28 @@ function UsersListPage({
       message.warning('不能批量删除当前登录用户');
       return;
     }
-    try {
-      await api('/users/batch-delete', {
-        method: 'DELETE',
-        body: JSON.stringify({ ids: selectedRowKeys }),
-      }, true);
-      message.success('批量删除成功');
-      setSelectedRowKeys([]);
-      void fetchRows();
-      onChanged();
-    } catch (error) {
-      message.error(parseError(error));
-    }
+
+    modal.confirm({
+      title: '删除确认',
+      content: `要删除当前选中的${selectedRowKeys.length}条记录吗？`,
+      okText: '确认',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await api('/users/batch-delete', {
+            method: 'DELETE',
+            body: JSON.stringify({ ids: selectedRowKeys }),
+          }, true);
+          message.success('删除完成');
+          setSelectedRowKeys([]);
+          void fetchRows();
+          onChanged();
+        } catch (error) {
+          message.error(parseError(error));
+        }
+      },
+    });
   };
 
   useEffect(() => {
@@ -507,9 +555,7 @@ function UsersListPage({
 
       <Card title="用户列表">
         <Space style={{ marginBottom: 12 }}>
-          <Button danger disabled={!selectedRowKeys.length || !canDelete} onClick={() => void batchDelete()}>批量删除</Button>
-          <Button disabled>批量复制（暂未实现）</Button>
-          <Button disabled>批量失效（暂未实现）</Button>
+          <Button danger disabled={!selectedRowKeys.length || !canDelete} onClick={() => void batchDelete()}>删除</Button>
         </Space>
         <Table<UserItem>
           rowKey="id"
@@ -961,43 +1007,18 @@ function ThemeSettingsPage({
   );
 }
 
-function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
-  const { message } = AntdApp.useApp();
-  const [roles, setRoles] = useState<RoleSummary[]>([]);
-  const [permissions, setPermissions] = useState<PermissionItem[]>([]);
-  const [modules, setModules] = useState<ModuleItem[]>([]);
+function RbacRoleListPage({ canUpdate }: { canUpdate: boolean }) {
+  const { message, modal } = AntdApp.useApp();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [savingPermissions, setSavingPermissions] = useState(false);
-  const [savingModules, setSavingModules] = useState(false);
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
-  const [roleModalLoading, setRoleModalLoading] = useState(false);
-  const [editingRole, setEditingRole] = useState<RoleSummary | null>(null);
-  const [selectedRoleCode, setSelectedRoleCode] = useState<string>('');
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
-  const [selectedModules, setSelectedModules] = useState<string[]>([]);
-  const [roleForm] = Form.useForm<RoleFormValues>();
-  const [users, setUsers] = useState<UserItem[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [assignUsersMode, setAssignUsersMode] = useState(false);
+  const [roles, setRoles] = useState<RoleSummary[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
-  const refreshAll = async () => {
+  const fetchRoles = async () => {
     setLoading(true);
     try {
-      const [roleData, permissionData, moduleData] = await Promise.all([
-        api<ListRolesResponse>('/rbac/roles', undefined, true),
-        api<ListPermissionsResponse>('/rbac/permissions', undefined, true),
-        api<ModuleItem[]>('/modules', undefined, true).catch(() => [] as ModuleItem[]),
-      ]);
+      const roleData = await api<ListRolesResponse>('/rbac/roles', undefined, true);
       setRoles(roleData);
-      setPermissions(permissionData);
-      setModules(moduleData);
-
-      if (!selectedRoleCode && roleData.length > 0) {
-        const first = roleData[0];
-        setSelectedRoleCode(first.code);
-        setSelectedPermissions(first.permissions ?? []);
-        setSelectedModules(first.modules ?? []);
-      }
     } catch (error) {
       message.error(parseError(error));
     } finally {
@@ -1006,120 +1027,98 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
   };
 
   useEffect(() => {
-    void refreshAll();
-    // eslint-disable-next-line react-hooks-exhaustive-deps
+    void fetchRoles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!selectedRoleCode) return;
-    const role = roles.find((item) => item.code === selectedRoleCode);
-    if (!role) return;
-    setSelectedPermissions(role.permissions ?? []);
-    setSelectedModules(role.modules ?? []);
-  }, [roles, selectedRoleCode]);
+  const batchDelete = async () => {
+    const selectedCodes = selectedRowKeys.map(String);
+    if (!selectedCodes.length) return;
 
-  const openCreateRole = () => {
-    setEditingRole(null);
-    setAssignUsersMode(false);
-    roleForm.resetFields();
-    setRoleModalOpen(true);
-  };
+    const protectedCodes = roles
+      .filter((r) => selectedCodes.includes(r.code) && r.isSystem)
+      .map((r) => r.code);
 
-  const openEditRole = (role: RoleSummary) => {
-    setEditingRole(role);
-    setAssignUsersMode(false);
-    roleForm.setFieldsValue({
-      code: role.code,
-      name: role.name,
-      description: role.description ?? '',
+    if (protectedCodes.length > 0) {
+      message.warning(`系统内置角色不可删除：${protectedCodes.join(', ')}`);
+      return;
+    }
+
+    modal.confirm({
+      title: '删除确认',
+      content: `要删除当前选中的${selectedCodes.length}条记录吗？`,
+      okText: '确认',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await Promise.all(selectedCodes.map((code) => api(`/rbac/roles/${code}`, { method: 'DELETE' }, true)));
+          message.success('删除完成');
+          setSelectedRowKeys([]);
+          await fetchRoles();
+        } catch (error) {
+          message.error(parseError(error));
+        }
+      },
     });
-    setRoleModalOpen(true);
   };
 
-  const fetchAllUsers = async () => {
-    setUsersLoading(true);
-    try {
-      const data = await api<ListUsersResponse>('/users?page=1&pageSize=0', undefined, true);
-      setUsers(data.data);
-    } catch (error) {
-      message.error(parseError(error));
-    } finally {
-      setUsersLoading(false);
-    }
-  };
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card className="keep-card-head" title="权限配置">
+        <Space>
+          <Button type="primary" onClick={() => navigate('/settings/rbac/create')} disabled={!canUpdate}>
+            创建
+          </Button>
+          <Button danger onClick={() => void batchDelete()} disabled={!canUpdate || !selectedRowKeys.length}>
+            删除
+          </Button>
+        </Space>
+      </Card>
 
-  const openAssignUsers = async (role: RoleSummary) => {
-    setEditingRole(role);
-    setAssignUsersMode(true);
-    if (users.length === 0) {
-      await fetchAllUsers();
-    }
-    const selectedUserIds = users
-      .filter((item) => item.roles?.includes(role.code))
-      .map((item) => item.id);
-    roleForm.setFieldsValue({
-      code: role.code,
-      name: role.name,
-      description: role.description ?? '',
-      userIds: selectedUserIds,
-    });
-    setRoleModalOpen(true);
-  };
+      <Card>
+        <Table<RoleSummary>
+          rowKey="code"
+          loading={loading}
+          dataSource={roles}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+            getCheckboxProps: (record) => ({ disabled: record.isSystem || !canUpdate }),
+          }}
+          onRow={(record) => ({
+            onClick: () => navigate(`/settings/rbac/${record.code}`),
+          })}
+          columns={[
+            { title: '角色编码', dataIndex: 'code' },
+            { title: '角色名称', dataIndex: 'name' },
+            { title: '描述', dataIndex: 'description', render: (value?: string) => value || '-' },
+            { title: '用户数', dataIndex: 'userCount' },
+            { title: '系统内置', dataIndex: 'isSystem', render: (value: boolean) => (value ? '是' : '否') },
+          ]}
+          pagination={false}
+        />
+      </Card>
+    </Space>
+  );
+}
 
-  const submitRoleForm = async () => {
-    try {
-      setRoleModalLoading(true);
+function RbacRoleEditorPage({ canUpdate }: { canUpdate: boolean }) {
+  const { message } = AntdApp.useApp();
+  const navigate = useNavigate();
+  const { code } = useParams<{ code: string }>();
+  const isCreate = !code || code === 'create';
 
-      if (assignUsersMode && editingRole) {
-        const userIds = roleForm.getFieldValue('userIds') ?? [];
-        await api(`/rbac/roles/${editingRole.code}/users`, {
-          method: 'PUT',
-          body: JSON.stringify({ userIds }),
-        }, true);
-        message.success('角色用户已更新');
-        setRoleModalOpen(false);
-        await refreshAll();
-        return;
-      }
-
-      const values = await roleForm.validateFields();
-
-      if (editingRole) {
-        await api(`/rbac/roles/${editingRole.code}`, {
-          method: 'PUT',
-          body: JSON.stringify({ name: values.name, description: values.description }),
-        }, true);
-        message.success('角色已更新');
-      } else {
-        await api('/rbac/roles', {
-          method: 'POST',
-          body: JSON.stringify(values),
-        }, true);
-        message.success('角色已创建');
-      }
-
-      setRoleModalOpen(false);
-      await refreshAll();
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('validate')) return;
-      message.error(parseError(error));
-    } finally {
-      setRoleModalLoading(false);
-    }
-  };
-
-  const deleteRole = async (role: RoleSummary) => {
-    try {
-      await api(`/rbac/roles/${role.code}`, { method: 'DELETE' }, true);
-      message.success('角色已删除');
-      if (selectedRoleCode === role.code) {
-        setSelectedRoleCode('');
-      }
-      await refreshAll();
-    } catch (error) {
-      message.error(parseError(error));
-    }
-  };
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [role, setRole] = useState<RoleSummary | null>(null);
+  const [permissions, setPermissions] = useState<PermissionItem[]>([]);
+  const [modules, setModules] = useState<ModuleItem[]>([]);
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [form] = Form.useForm<RoleFormValues>();
 
   const groupedPermissions = useMemo(() => {
     const map = new Map<string, PermissionItem[]>();
@@ -1131,192 +1130,410 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
     return Array.from(map.entries());
   }, [permissions]);
 
-  const handleSavePermissions = async () => {
-    if (!selectedRoleCode) return;
-    setSavingPermissions(true);
+  const refreshData = async () => {
+    setLoading(true);
     try {
-      await api(`/rbac/roles/${selectedRoleCode}/permissions`, {
-        method: 'PUT',
-        body: JSON.stringify({ permissionCodes: selectedPermissions }),
-      }, true);
-      message.success('权限点已更新');
-      await refreshAll();
+      const [roleData, permissionData, moduleData, usersData] = await Promise.all([
+        api<ListRolesResponse>('/rbac/roles', undefined, true),
+        api<ListPermissionsResponse>('/rbac/permissions', undefined, true),
+        api<ModuleItem[]>('/modules', undefined, true).catch(() => [] as ModuleItem[]),
+        api<ListUsersResponse>('/users?page=1&pageSize=0', undefined, true),
+      ]);
+      setPermissions(permissionData);
+      setModules(moduleData);
+      setUsers(usersData.data);
+
+      if (isCreate) {
+        setRole(null);
+        form.setFieldsValue({ code: '', name: '', description: '' });
+        setSelectedPermissions([]);
+        setSelectedModules([]);
+        setSelectedUserIds([]);
+      } else {
+        const found = roleData.find((r) => r.code === code);
+        if (!found) {
+          message.error('角色不存在');
+          navigate('/settings/rbac');
+          return;
+        }
+        setRole(found);
+        form.setFieldsValue({ code: found.code, name: found.name, description: found.description ?? '' });
+        setSelectedPermissions(found.permissions ?? []);
+        setSelectedModules(found.modules ?? []);
+        setSelectedUserIds(usersData.data.filter((item) => item.roles?.includes(found.code)).map((item) => item.id));
+      }
     } catch (error) {
       message.error(parseError(error));
     } finally {
-      setSavingPermissions(false);
+      setLoading(false);
     }
   };
 
-  const handleSaveModules = async () => {
-    if (!selectedRoleCode) return;
-    setSavingModules(true);
+  useEffect(() => {
+    void refreshData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
+  const submit = async () => {
+    if (!canUpdate) return;
     try {
-      await api(`/rbac/roles/${selectedRoleCode}/modules`, {
+      const values = await form.validateFields();
+      const targetCode = (isCreate ? values.code : code) as string;
+      if (!targetCode) return;
+
+      setSaving(true);
+
+      if (isCreate) {
+        await api('/rbac/roles', {
+          method: 'POST',
+          body: JSON.stringify({ code: values.code, name: values.name, description: values.description }),
+        }, true);
+      } else {
+        await api(`/rbac/roles/${targetCode}`, {
+          method: 'PUT',
+          body: JSON.stringify({ name: values.name, description: values.description }),
+        }, true);
+      }
+
+      await api(`/rbac/roles/${targetCode}/permissions`, {
+        method: 'PUT',
+        body: JSON.stringify({ permissionCodes: selectedPermissions }),
+      }, true);
+
+      await api(`/rbac/roles/${targetCode}/modules`, {
         method: 'PUT',
         body: JSON.stringify({ moduleCodes: selectedModules }),
       }, true);
-      message.success('模块授权已更新');
-      await refreshAll();
+
+      await api(`/rbac/roles/${targetCode}/users`, {
+        method: 'PUT',
+        body: JSON.stringify({ userIds: selectedUserIds }),
+      }, true);
+
+      message.success(isCreate ? '角色已创建' : '角色已更新');
+      navigate(isCreate ? `/settings/rbac/${targetCode}` : '/settings/rbac');
     } catch (error) {
+      if (error instanceof Error && error.message.includes('validate')) return;
       message.error(parseError(error));
     } finally {
-      setSavingModules(false);
+      setSaving(false);
     }
   };
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
       <Card
-        title="角色管理"
+        className="keep-card-head"
+        title={isCreate ? '创建角色' : `编辑角色：${role?.name ?? code}`}
         loading={loading}
         extra={
-          <Button type="primary" onClick={openCreateRole} disabled={!canUpdate}>
-            新建角色
-          </Button>
+          <Space>
+            <Button onClick={() => navigate('/settings/rbac')}>返回</Button>
+            <Button type="primary" loading={saving} disabled={!canUpdate} onClick={() => void submit()}>
+              保存
+            </Button>
+          </Space>
         }
       >
-        <Table<RoleSummary>
-          rowKey="code"
-          dataSource={roles}
-          pagination={false}
-          columns={[
-            { title: '角色编码', dataIndex: 'code' },
-            { title: '角色名称', dataIndex: 'name' },
-            { title: '描述', dataIndex: 'description', render: (value?: string) => value || '-' },
-            { title: '用户数', dataIndex: 'userCount' },
-            { title: '系统内置', dataIndex: 'isSystem', render: (value: boolean) => (value ? '是' : '否') },
-            {
-              title: '操作',
-              render: (_, role) => (
-                <Space>
-                  <Button size="small" onClick={() => setSelectedRoleCode(role.code)}>
-                    选择
-                  </Button>
-                  <Button size="small" onClick={() => openEditRole(role)} disabled={!canUpdate || role.isSystem}>
-                    编辑
-                  </Button>
-                  <Button size="small" onClick={() => void openAssignUsers(role)} disabled={!canUpdate}>
-                    分配用户
-                  </Button>
-                  <Popconfirm
-                    title="确认删除该角色？"
-                    okText="删除"
-                    cancelText="取消"
-                    disabled={!canUpdate || role.isSystem}
-                    onConfirm={() => void deleteRole(role)}
-                  >
-                    <Button size="small" danger disabled={!canUpdate || role.isSystem}>
-                      删除
-                    </Button>
-                  </Popconfirm>
-                </Space>
-              ),
-            },
-          ]}
-        />
+        <Form form={form} layout="vertical">
+          <div className="grid-form" style={{ gridTemplateColumns: 'repeat(3, minmax(180px, 1fr))' }}>
+            <Form.Item
+              label="角色编码"
+              name="code"
+              rules={[
+                { required: true, message: '请输入角色编码' },
+                { pattern: /^[A-Z][A-Z0-9_]{1,30}$/, message: '仅支持大写字母/数字/下划线，且以字母开头' },
+              ]}
+            >
+              <Input placeholder="例如：SALES_MANAGER" disabled={!isCreate} />
+            </Form.Item>
+            <Form.Item label="角色名称" name="name" rules={[{ required: true, message: '请输入角色名称' }]}>
+              <Input placeholder="例如：销售经理" />
+            </Form.Item>
+            <Form.Item label="描述" name="description">
+              <Input placeholder="可选" />
+            </Form.Item>
+          </div>
+        </Form>
       </Card>
 
-      <Card
-        title="权限点"
-        extra={
-          <Button type="primary" onClick={() => void handleSavePermissions()} disabled={!canUpdate || !selectedRoleCode} loading={savingPermissions}>
-            保存权限点
-          </Button>
-        }
-      >
-        {!selectedRoleCode ? (
-          <Typography.Text type="secondary">请先选择角色</Typography.Text>
-        ) : (
-          <Space direction="vertical" style={{ width: '100%' }} size={12}>
-            {groupedPermissions.map(([moduleCode, perms]) => (
+      <Card className="keep-card-head" title="权限点">
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          {groupedPermissions.map(([moduleCode, perms]) => {
+            const moduleCodes = perms.map((p) => p.code);
+            return (
               <Card key={moduleCode} size="small" title={`模块：${moduleCode}`}>
                 <Checkbox.Group
-                  value={selectedPermissions}
-                  onChange={(values) => setSelectedPermissions(values as string[])}
+                  value={selectedPermissions.filter((code) => moduleCodes.includes(code))}
+                  onChange={(values) => {
+                    const moduleSet = new Set(moduleCodes);
+                    const next = new Set(selectedPermissions.filter((code) => !moduleSet.has(code)));
+                    (values as string[]).forEach((v) => next.add(v));
+                    setSelectedPermissions(Array.from(next));
+                  }}
                   options={perms.map((perm) => ({
                     label: `${perm.name} (${perm.code})`,
                     value: perm.code,
                   }))}
                 />
               </Card>
-            ))}
-          </Space>
-        )}
+            );
+          })}
+        </Space>
       </Card>
 
-      <Card
-        title="模块授权"
-        extra={
-          <Button type="primary" onClick={() => void handleSaveModules()} disabled={!canUpdate || !selectedRoleCode} loading={savingModules}>
-            保存模块授权
-          </Button>
-        }
-      >
-        {!selectedRoleCode ? (
-          <Typography.Text type="secondary">请先选择角色</Typography.Text>
-        ) : (
-          <Checkbox.Group
-            value={selectedModules}
-            onChange={(values) => setSelectedModules(values as string[])}
-            options={modules.map((module) => ({
-              label: `${module.name} (${module.code})`,
-              value: module.code,
-            }))}
-          />
-        )}
+      <Card className="keep-card-head" title="模块授权">
+        <Checkbox.Group
+          value={selectedModules}
+          onChange={(values) => setSelectedModules(values as string[])}
+          options={modules.map((module) => ({
+            label: `${module.name} (${module.code})`,
+            value: module.code,
+          }))}
+        />
       </Card>
 
-      <Modal
-        title={assignUsersMode ? '分配用户' : editingRole ? '编辑角色' : '新建角色'}
-        open={roleModalOpen}
-        onCancel={() => setRoleModalOpen(false)}
-        onOk={() => void submitRoleForm()}
-        okText={assignUsersMode ? '保存' : editingRole ? '保存' : '创建'}
-        confirmLoading={roleModalLoading}
-        okButtonProps={{ disabled: !canUpdate }}
-        cancelText="取消"
-      >
-        <Form form={roleForm} layout="vertical">
-          {assignUsersMode ? (
-            <Form.Item label="分配用户" name="userIds">
-              <Select
-                mode="multiple"
-                placeholder="选择用户"
-                loading={usersLoading}
-                optionFilterProp="label"
-                options={users.map((user) => ({
-                  value: user.id,
-                  label: user.name ? user.name + ' (' + user.username + ')' : user.username,
-                }))}
-              />
+      <Card className="keep-card-head" title="分配用户">
+        <Select
+          mode="multiple"
+          value={selectedUserIds}
+          onChange={(values) => setSelectedUserIds(values)}
+          optionFilterProp="label"
+          style={{ width: '100%' }}
+          options={users.map((user) => ({
+            value: user.id,
+            label: user.name ? `${user.name} (${user.username})` : user.username,
+          }))}
+        />
+      </Card>
+    </Space>
+  );
+}
+
+function EmailSendCenterPage() {
+  const { message } = AntdApp.useApp();
+  const [sending, setSending] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [loadingInbox, setLoadingInbox] = useState(false);
+  const [logs, setLogs] = useState<EmailSendLogItem[]>([]);
+  const [inboxRows, setInboxRows] = useState<EmailInboxItem[]>([]);
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(10);
+  const [logTotal, setLogTotal] = useState(0);
+  const [inboxPage, setInboxPage] = useState(1);
+  const [inboxPageSize, setInboxPageSize] = useState(10);
+  const [inboxTotal, setInboxTotal] = useState(0);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detail, setDetail] = useState<EmailInboxItem | null>(null);
+  const [form] = Form.useForm<{ to: string; subject: string; content: string }>();
+
+  const fetchLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const query = buildListQuery({ page: logPage, pageSize: logPageSize }, {});
+      const res = await api<ListEmailSendLogsResponse>(`/emails/send-logs?${query}`, undefined, true);
+      setLogs(res.data);
+      setLogTotal(res.total);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const fetchInbox = async () => {
+    setLoadingInbox(true);
+    try {
+      const query = buildListQuery({ page: inboxPage, pageSize: inboxPageSize }, {});
+      const res = await api<ListEmailInboxResponse>(`/emails/inbox?${query}`, undefined, true);
+      setInboxRows(res.data);
+      setInboxTotal(res.total);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoadingInbox(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logPage, logPageSize]);
+
+  useEffect(() => {
+    void fetchInbox();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inboxPage, inboxPageSize]);
+
+  const submitSend = async () => {
+    try {
+      const values = await form.validateFields();
+      setSending(true);
+      await api(
+        '/emails/send',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            to: values.to.trim(),
+            subject: values.subject.trim(),
+            content: values.content.trim(),
+          }),
+        },
+        true,
+      );
+      message.success('邮件发送成功');
+      form.resetFields();
+      void fetchLogs();
+    } catch (error) {
+      if (error instanceof Error) message.error(parseError(error));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const syncInbox = async () => {
+    try {
+      setSyncing(true);
+      await api('/emails/sync', {
+        method: 'POST',
+        body: JSON.stringify({ limit: 30 }),
+      }, true);
+      message.success('收件箱同步完成');
+      setInboxPage(1);
+      void fetchInbox();
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const openDetail = async (id: string) => {
+    try {
+      const row = await api<EmailInboxItem>(`/emails/${id}`, undefined, true);
+      setDetail(row);
+      setDetailOpen(true);
+    } catch (error) {
+      message.error(parseError(error));
+    }
+  };
+
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card title="发件中心">
+        <Form form={form} layout="vertical">
+          <div className="grid-form" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
+            <Form.Item
+              label="收件人"
+              name="to"
+              rules={[{ required: true, message: '请输入收件人邮箱' }]}
+              style={{ gridColumn: 'span 2' }}
+            >
+              <Input placeholder="多个收件人用英文逗号分隔" />
             </Form.Item>
-          ) : (
-            <>
-              <Form.Item
-                label="角色编码"
-                name="code"
-                rules={[
-                  { required: true, message: '请输入角色编码' },
-                  { pattern: /^[A-Z][A-Z0-9_]{1,30}$/, message: '仅支持大写字母/数字/下划线，且以字母开头' },
-                ]}
-              >
-                <Input placeholder="例如：SALES_MANAGER" disabled={!!editingRole} />
-              </Form.Item>
-              <Form.Item
-                label="角色名称"
-                name="name"
-                rules={[{ required: true, message: '请输入角色名称' }]}
-              >
-                <Input placeholder="例如：销售经理" />
-              </Form.Item>
-              <Form.Item label="描述" name="description">
-                <Input.TextArea rows={3} placeholder="可选" />
-              </Form.Item>
-            </>
-          )}
+            <Form.Item
+              label="主题"
+              name="subject"
+              rules={[{ required: true, message: '请输入主题' }]}
+              style={{ gridColumn: 'span 2' }}
+            >
+              <Input />
+            </Form.Item>
+            <Form.Item
+              label="正文"
+              name="content"
+              rules={[{ required: true, message: '请输入正文' }]}
+              style={{ gridColumn: 'span 4' }}
+            >
+              <Input.TextArea rows={8} />
+            </Form.Item>
+          </div>
+          <Button type="primary" loading={sending} onClick={() => void submitSend()}>
+            发送邮件
+          </Button>
         </Form>
-      </Modal>
+      </Card>
+
+      <Card title="收件箱" extra={<Button loading={syncing} onClick={() => void syncInbox()}>同步邮件</Button>}>
+        <Table<EmailInboxItem>
+          rowKey="id"
+          loading={loadingInbox}
+          dataSource={inboxRows}
+          columns={[
+            { title: '发件人', dataIndex: 'fromAddress' },
+            { title: '主题', dataIndex: 'subject' },
+            {
+              title: '接收时间',
+              dataIndex: 'receivedAt',
+              render: (v?: string) => (v ? new Date(v).toLocaleString() : '-'),
+            },
+          ]}
+          onRow={(record) => ({ onClick: () => void openDetail(record.id), style: { cursor: 'pointer' } })}
+          pagination={{
+            current: inboxPage,
+            pageSize: inboxPageSize,
+            total: inboxTotal,
+            showSizeChanger: true,
+            onChange: (next, size) => {
+              setInboxPage(next);
+              setInboxPageSize(size);
+            },
+          }}
+        />
+      </Card>
+
+      <Card title="发送记录">
+        <Table<EmailSendLogItem>
+          rowKey="id"
+          loading={loadingLogs}
+          dataSource={logs}
+          columns={[
+            { title: '收件人', dataIndex: 'to' },
+            { title: '主题', dataIndex: 'subject' },
+            {
+              title: '状态',
+              dataIndex: 'status',
+              render: (v: string) => <Tag color={v === 'SUCCESS' ? 'green' : 'red'}>{v}</Tag>,
+            },
+            { title: '时间', dataIndex: 'createdAt', render: (v: string) => new Date(v).toLocaleString() },
+            { title: '错误信息', dataIndex: 'error', render: (v?: string) => v || '-' },
+          ]}
+          pagination={{
+            current: logPage,
+            pageSize: logPageSize,
+            total: logTotal,
+            showSizeChanger: true,
+            onChange: (next, size) => {
+              setLogPage(next);
+              setLogPageSize(size);
+            },
+          }}
+        />
+      </Card>
+
+      <Drawer
+        open={detailOpen}
+        width={720}
+        title={detail?.subject || '邮件详情'}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetail(null);
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Typography.Text>发件人：{detail?.fromAddress || '-'}</Typography.Text>
+          <Typography.Text>收件人：{detail?.toAddress || '-'}</Typography.Text>
+          <Typography.Text>
+            接收时间：{detail?.receivedAt ? new Date(detail.receivedAt).toLocaleString() : '-'}
+          </Typography.Text>
+          <Card size="small">
+            <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
+              {detail?.textBody || '（无纯文本正文）'}
+            </Typography.Paragraph>
+          </Card>
+        </Space>
+      </Drawer>
     </Space>
   );
 }
@@ -1628,9 +1845,9 @@ function ProfilePage({ user }: { user: AuthUser }) {
 }
 
 function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: boolean }) {
-  const { message } = AntdApp.useApp();
+  const { message, modal } = AntdApp.useApp();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState<ProjectItem[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [total, setTotal] = useState(0);
@@ -1638,14 +1855,6 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<ProjectStatus | undefined>(undefined);
-  const [editing, setEditing] = useState<ProjectItem | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [form] = Form.useForm<{
-    name: string;
-    code: string;
-    description?: string;
-    status: ProjectStatus;
-  }>();
 
   const fetchRows = async () => {
     setLoading(true);
@@ -1669,65 +1878,28 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, keyword, status]);
 
-  const openCreate = () => {
-    setEditing(null);
-    form.setFieldsValue({ name: '', code: '', description: '', status: 'PLANNING' });
-    setFormOpen(true);
-  };
-
-  const openEdit = (record: ProjectItem) => {
-    if (!canUpdate) return;
-    setEditing(record);
-    form.setFieldsValue({
-      name: record.name,
-      code: record.code,
-      description: record.description,
-      status: record.status,
-    });
-    setFormOpen(true);
-  };
-
-  const submitForm = async () => {
-    try {
-      const values = await form.validateFields();
-      setSaving(true);
-      if (editing) {
-        await api(`/projects/${editing.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(values),
-        }, true);
-        message.success('项目已更新');
-      } else {
-        await api('/projects', {
-          method: 'POST',
-          body: JSON.stringify(values),
-        }, true);
-        message.success('项目已创建');
-      }
-      setFormOpen(false);
-      setEditing(null);
-      setSelectedRowKeys([]);
-      void fetchRows();
-    } catch (error) {
-      if (error instanceof Error) message.error(parseError(error));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const batchDelete = async () => {
     if (!selectedRowKeys.length) return;
-    try {
-      await api('/projects/batch-delete', {
-        method: 'DELETE',
-        body: JSON.stringify({ ids: selectedRowKeys }),
-      }, true);
-      message.success('批量删除完成');
-      setSelectedRowKeys([]);
-      void fetchRows();
-    } catch (error) {
-      message.error(parseError(error));
-    }
+    modal.confirm({
+      title: '删除确认',
+      content: `要删除当前选中的${selectedRowKeys.length}条记录吗？`,
+      okText: '确认',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await api('/projects/batch-delete', {
+            method: 'DELETE',
+            body: JSON.stringify({ ids: selectedRowKeys }),
+          }, true);
+          message.success('删除完成');
+          setSelectedRowKeys([]);
+          void fetchRows();
+        } catch (error) {
+          message.error(parseError(error));
+        }
+      },
+    });
   };
 
   return (
@@ -1760,15 +1932,13 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
               { label: '归档', value: 'ARCHIVED' },
             ]}
           />
-          <Button type="primary" onClick={openCreate} disabled={!canCreate}>新建项目</Button>
+          <Button type="primary" onClick={() => navigate('/projects/create')} disabled={!canCreate}>新建项目</Button>
         </Space>
       </Card>
 
       <Card>
         <Space style={{ marginBottom: 12 }}>
-          <Button danger disabled={!selectedRowKeys.length || !canUpdate} onClick={() => void batchDelete()}>批量删除</Button>
-          <Button disabled>批量复制（暂未实现）</Button>
-          <Button disabled>批量失效（暂未实现）</Button>
+          <Button danger disabled={!selectedRowKeys.length || !canUpdate} onClick={() => void batchDelete()}>删除</Button>
         </Space>
         <Table<ProjectItem>
           rowKey="id"
@@ -1779,7 +1949,7 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
             onChange: (keys) => setSelectedRowKeys(keys),
           }}
           onRow={(record) => ({
-            onClick: () => openEdit(record),
+            onClick: () => navigate(`/projects/${record.id}`),
           })}
           columns={[
             { title: '项目名称', dataIndex: 'name' },
@@ -1803,52 +1973,154 @@ function ProjectPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: 
           }}
         />
       </Card>
-
-      {formOpen ? (
-        <Card
-          title={editing ? '编辑项目' : '新建项目'}
-          extra={
-            <Space>
-              <Button onClick={() => { setFormOpen(false); setEditing(null); }}>取消</Button>
-              <Button type="primary" loading={saving} onClick={() => void submitForm()}>{editing ? '保存' : '创建'}</Button>
-            </Space>
-          }
-        >
-          <Form form={form} layout="vertical">
-            <div className="grid-form" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
-              <Form.Item label="项目名称" name="name" rules={[{ required: true, min: 2 }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item label="项目编码" name="code" rules={[{ required: true, min: 2 }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item label="状态" name="status" rules={[{ required: true }]}>
-                <Select
-                  options={[
-                    { label: '规划中', value: 'PLANNING' },
-                    { label: '进行中', value: 'ACTIVE' },
-                    { label: '暂停', value: 'ON_HOLD' },
-                    { label: '完成', value: 'DONE' },
-                    { label: '归档', value: 'ARCHIVED' },
-                  ]}
-                />
-              </Form.Item>
-              <div />
-              <Form.Item label="说明" name="description" style={{ gridColumn: 'span 2' }}>
-                <Input.TextArea rows={3} />
-              </Form.Item>
-            </div>
-          </Form>
-        </Card>
-      ) : null}
     </Space>
   );
 }
 
-function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: boolean }) {
+function ProjectFormPage({
+  mode,
+  canCreate,
+  canUpdate,
+}: {
+  mode: 'create' | 'edit';
+  canCreate: boolean;
+  canUpdate: boolean;
+}) {
   const { message } = AntdApp.useApp();
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const [saving, setSaving] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [form] = Form.useForm<{ name: string; code: string; description?: string; status: ProjectStatus }>();
+
+  useEffect(() => {
+    if (mode !== 'edit' || !id) return;
+    setLoadingDetail(true);
+    api<ProjectItem>(`/projects/${id}`, undefined, true)
+      .then((res) => {
+        form.setFieldsValue({
+          name: res.name,
+          code: res.code,
+          description: res.description,
+          status: res.status,
+        });
+      })
+      .catch((error) => message.error(parseError(error)))
+      .finally(() => setLoadingDetail(false));
+  }, [form, id, message, mode]);
+
+  const disabled = mode === 'create' ? !canCreate : !canUpdate;
+
+  const submitForm = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+      if (mode === 'edit' && id) {
+        await api(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(values) }, true);
+        message.success('项目已更新');
+        navigate(`/projects/${id}`);
+      } else {
+        await api('/projects', { method: 'POST', body: JSON.stringify(values) }, true);
+        message.success('项目已创建');
+        navigate('/projects');
+      }
+    } catch (error) {
+      if (error instanceof Error) message.error(parseError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card
+      className="keep-card-head"
+      title={mode === 'edit' ? '编辑项目' : '新建项目'}
+      extra={
+        <Space>
+          <Button onClick={() => navigate(mode === 'edit' && id ? `/projects/${id}` : '/projects')}>取消</Button>
+          <Button type="primary" disabled={disabled} loading={saving} onClick={() => void submitForm()}>
+            {mode === 'edit' ? '保存' : '创建'}
+          </Button>
+        </Space>
+      }
+    >
+      <Form form={form} layout="vertical" initialValues={{ status: 'PLANNING' }}>
+        <div className="grid-form" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
+          <Form.Item label="项目名称" name="name" rules={[{ required: true, min: 2 }]}>
+            <Input disabled={loadingDetail} />
+          </Form.Item>
+          <Form.Item label="项目编码" name="code" rules={[{ required: true, min: 2 }]}>
+            <Input disabled={loadingDetail} />
+          </Form.Item>
+          <Form.Item label="状态" name="status" rules={[{ required: true }]}>
+            <Select
+              disabled={loadingDetail}
+              options={[
+                { label: '规划中', value: 'PLANNING' },
+                { label: '进行中', value: 'ACTIVE' },
+                { label: '暂停', value: 'ON_HOLD' },
+                { label: '完成', value: 'DONE' },
+                { label: '归档', value: 'ARCHIVED' },
+              ]}
+            />
+          </Form.Item>
+          <div />
+          <Form.Item label="说明" name="description" style={{ gridColumn: 'span 2' }}>
+            <Input.TextArea rows={3} disabled={loadingDetail} />
+          </Form.Item>
+        </div>
+      </Form>
+    </Card>
+  );
+}
+
+function ProjectShowPage({ canUpdate }: { canUpdate: boolean }) {
+  const { message } = AntdApp.useApp();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<ProjectItem | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    api<ProjectItem>(`/projects/${id}`, undefined, true)
+      .then((res) => setData(res))
+      .catch((error) => message.error(parseError(error)))
+      .finally(() => setLoading(false));
+  }, [id, message]);
+
+  return (
+    <Card
+      className="keep-card-head"
+      title="项目详情"
+      loading={loading}
+      extra={
+        <Space>
+          <Button onClick={() => navigate('/projects')}>返回列表</Button>
+          <Button type="primary" disabled={!canUpdate || !id} onClick={() => navigate(`/projects/${id}/edit`)}>
+            编辑
+          </Button>
+        </Space>
+      }
+    >
+      {data ? (
+        <Descriptions column={2} bordered size="small">
+          <Descriptions.Item label="项目名称">{data.name}</Descriptions.Item>
+          <Descriptions.Item label="项目编码">{data.code}</Descriptions.Item>
+          <Descriptions.Item label="状态">{data.status}</Descriptions.Item>
+          <Descriptions.Item label="创建时间">{new Date(data.createdAt).toLocaleString()}</Descriptions.Item>
+          <Descriptions.Item label="说明" span={2}>{data.description || '-'}</Descriptions.Item>
+        </Descriptions>
+      ) : null}
+    </Card>
+  );
+}
+
+function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpdate: boolean }) {
+  const { message, modal } = AntdApp.useApp();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<EmployeeItem[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [total, setTotal] = useState(0);
@@ -1856,16 +2128,6 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
   const [pageSize, setPageSize] = useState(10);
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<EmployeeStatus | undefined>(undefined);
-  const [editing, setEditing] = useState<EmployeeItem | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [form] = Form.useForm<{
-    name: string;
-    email: string;
-    phone?: string;
-    department?: string;
-    title?: string;
-    status: EmployeeStatus;
-  }>();
 
   const fetchRows = async () => {
     setLoading(true);
@@ -1889,60 +2151,28 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, keyword, status]);
 
-  const openCreate = () => {
-    setEditing(null);
-    form.setFieldsValue({ name: '', email: '', phone: '', department: '', title: '', status: 'ACTIVE' });
-    setFormOpen(true);
-  };
-
-  const openEdit = (record: EmployeeItem) => {
-    if (!canUpdate) return;
-    setEditing(record);
-    form.setFieldsValue(record);
-    setFormOpen(true);
-  };
-
-  const submitForm = async () => {
-    try {
-      const values = await form.validateFields();
-      setSaving(true);
-      if (editing) {
-        await api(`/hr/employees/${editing.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(values),
-        }, true);
-        message.success('员工已更新');
-      } else {
-        await api('/hr/employees', {
-          method: 'POST',
-          body: JSON.stringify(values),
-        }, true);
-        message.success('员工已创建');
-      }
-      setFormOpen(false);
-      setEditing(null);
-      setSelectedRowKeys([]);
-      void fetchRows();
-    } catch (error) {
-      if (error instanceof Error) message.error(parseError(error));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const batchDelete = async () => {
     if (!selectedRowKeys.length) return;
-    try {
-      await api('/hr/employees/batch-delete', {
-        method: 'DELETE',
-        body: JSON.stringify({ ids: selectedRowKeys }),
-      }, true);
-      message.success('批量删除完成');
-      setSelectedRowKeys([]);
-      void fetchRows();
-    } catch (error) {
-      message.error(parseError(error));
-    }
+    modal.confirm({
+      title: '删除确认',
+      content: `要删除当前选中的${selectedRowKeys.length}条记录吗？`,
+      okText: '确认',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await api('/hr/employees/batch-delete', {
+            method: 'DELETE',
+            body: JSON.stringify({ ids: selectedRowKeys }),
+          }, true);
+          message.success('删除完成');
+          setSelectedRowKeys([]);
+          void fetchRows();
+        } catch (error) {
+          message.error(parseError(error));
+        }
+      },
+    });
   };
 
   return (
@@ -1972,15 +2202,13 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
               { label: '离职', value: 'INACTIVE' },
             ]}
           />
-          <Button type="primary" onClick={openCreate} disabled={!canCreate}>新建员工</Button>
+          <Button type="primary" onClick={() => navigate('/hr/employees/create')} disabled={!canCreate}>新建员工</Button>
         </Space>
       </Card>
 
       <Card>
         <Space style={{ marginBottom: 12 }}>
-          <Button danger disabled={!selectedRowKeys.length || !canUpdate} onClick={() => void batchDelete()}>批量删除</Button>
-          <Button disabled>批量复制（暂未实现）</Button>
-          <Button disabled>批量失效（暂未实现）</Button>
+          <Button danger disabled={!selectedRowKeys.length || !canUpdate} onClick={() => void batchDelete()}>删除</Button>
         </Space>
         <Table<EmployeeItem>
           rowKey="id"
@@ -1991,7 +2219,7 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
             onChange: (keys) => setSelectedRowKeys(keys),
           }}
           onRow={(record) => ({
-            onClick: () => openEdit(record),
+            onClick: () => navigate(`/hr/employees/${record.id}`),
           })}
           columns={[
             { title: '姓名', dataIndex: 'name' },
@@ -2013,47 +2241,152 @@ function HrEmployeesPage({ canCreate, canUpdate }: { canCreate: boolean; canUpda
           }}
         />
       </Card>
-
-      {formOpen ? (
-        <Card
-          title={editing ? '编辑员工' : '新建员工'}
-          extra={
-            <Space>
-              <Button onClick={() => { setFormOpen(false); setEditing(null); }}>取消</Button>
-              <Button type="primary" loading={saving} onClick={() => void submitForm()}>{editing ? '保存' : '创建'}</Button>
-            </Space>
-          }
-        >
-          <Form form={form} layout="vertical">
-            <div className="grid-form" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
-              <Form.Item label="姓名" name="name" rules={[{ required: true, min: 2 }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
-                <Input />
-              </Form.Item>
-              <Form.Item label="状态" name="status" rules={[{ required: true }]}> 
-                <Select
-                  options={[
-                    { label: '在职', value: 'ACTIVE' },
-                    { label: '离职', value: 'INACTIVE' },
-                  ]}
-                />
-              </Form.Item>
-              <Form.Item label="电话" name="phone">
-                <Input />
-              </Form.Item>
-              <Form.Item label="部门" name="department" style={{ gridColumn: 'span 2' }}>
-                <Input />
-              </Form.Item>
-              <Form.Item label="岗位" name="title" style={{ gridColumn: 'span 2' }}>
-                <Input />
-              </Form.Item>
-            </div>
-          </Form>
-        </Card>
-      ) : null}
     </Space>
+  );
+}
+
+function HrEmployeeFormPage({
+  mode,
+  canCreate,
+  canUpdate,
+}: {
+  mode: 'create' | 'edit';
+  canCreate: boolean;
+  canUpdate: boolean;
+}) {
+  const { message } = AntdApp.useApp();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const [saving, setSaving] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [form] = Form.useForm<{
+    name: string;
+    email: string;
+    phone?: string;
+    department?: string;
+    title?: string;
+    status: EmployeeStatus;
+  }>();
+
+  useEffect(() => {
+    if (mode !== 'edit' || !id) return;
+    setLoadingDetail(true);
+    api<EmployeeItem>(`/hr/employees/${id}`, undefined, true)
+      .then((res) => form.setFieldsValue(res))
+      .catch((error) => message.error(parseError(error)))
+      .finally(() => setLoadingDetail(false));
+  }, [form, id, message, mode]);
+
+  const disabled = mode === 'create' ? !canCreate : !canUpdate;
+
+  const submitForm = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+      if (mode === 'edit' && id) {
+        await api(`/hr/employees/${id}`, { method: 'PATCH', body: JSON.stringify(values) }, true);
+        message.success('员工已更新');
+        navigate(`/hr/employees/${id}`);
+      } else {
+        await api('/hr/employees', { method: 'POST', body: JSON.stringify(values) }, true);
+        message.success('员工已创建');
+        navigate('/hr/employees');
+      }
+    } catch (error) {
+      if (error instanceof Error) message.error(parseError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card
+      className="keep-card-head"
+      title={mode === 'edit' ? '编辑员工' : '新建员工'}
+      extra={
+        <Space>
+          <Button onClick={() => navigate(mode === 'edit' && id ? `/hr/employees/${id}` : '/hr/employees')}>取消</Button>
+          <Button type="primary" disabled={disabled} loading={saving} onClick={() => void submitForm()}>
+            {mode === 'edit' ? '保存' : '创建'}
+          </Button>
+        </Space>
+      }
+    >
+      <Form form={form} layout="vertical" initialValues={{ status: 'ACTIVE' }}>
+        <div className="grid-form" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
+          <Form.Item label="姓名" name="name" rules={[{ required: true, min: 2 }]}>
+            <Input disabled={loadingDetail} />
+          </Form.Item>
+          <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
+            <Input disabled={loadingDetail} />
+          </Form.Item>
+          <Form.Item label="状态" name="status" rules={[{ required: true }]}> 
+            <Select
+              disabled={loadingDetail}
+              options={[
+                { label: '在职', value: 'ACTIVE' },
+                { label: '离职', value: 'INACTIVE' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item label="电话" name="phone">
+            <Input disabled={loadingDetail} />
+          </Form.Item>
+          <Form.Item label="部门" name="department" style={{ gridColumn: 'span 2' }}>
+            <Input disabled={loadingDetail} />
+          </Form.Item>
+          <Form.Item label="岗位" name="title" style={{ gridColumn: 'span 2' }}>
+            <Input disabled={loadingDetail} />
+          </Form.Item>
+        </div>
+      </Form>
+    </Card>
+  );
+}
+
+function HrEmployeeShowPage({ canUpdate }: { canUpdate: boolean }) {
+  const { message } = AntdApp.useApp();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<EmployeeItem | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    api<EmployeeItem>(`/hr/employees/${id}`, undefined, true)
+      .then((res) => setData(res))
+      .catch((error) => message.error(parseError(error)))
+      .finally(() => setLoading(false));
+  }, [id, message]);
+
+  return (
+    <Card
+      className="keep-card-head"
+      title="员工详情"
+      loading={loading}
+      extra={
+        <Space>
+          <Button onClick={() => navigate('/hr/employees')}>返回列表</Button>
+          <Button type="primary" disabled={!canUpdate || !id} onClick={() => navigate(`/hr/employees/${id}/edit`)}>
+            编辑
+          </Button>
+        </Space>
+      }
+    >
+      {data ? (
+        <Descriptions column={2} bordered size="small">
+          <Descriptions.Item label="姓名">{data.name}</Descriptions.Item>
+          <Descriptions.Item label="邮箱">{data.email}</Descriptions.Item>
+          <Descriptions.Item label="状态">{data.status}</Descriptions.Item>
+          <Descriptions.Item label="电话">{data.phone || '-'}</Descriptions.Item>
+          <Descriptions.Item label="部门">{data.department || '-'}</Descriptions.Item>
+          <Descriptions.Item label="岗位">{data.title || '-'}</Descriptions.Item>
+          <Descriptions.Item label="创建时间">{new Date(data.createdAt).toLocaleString()}</Descriptions.Item>
+          <Descriptions.Item label="更新时间">{new Date(data.updatedAt).toLocaleString()}</Descriptions.Item>
+        </Descriptions>
+      ) : null}
+    </Card>
   );
 }
 
@@ -2281,6 +2614,7 @@ function AppShell({
   }));
 
   const canUsersRead = can('users.read');
+  const canDashboardRead = can('dashboard.read');
   const canProjectRead = can('project.read');
   const canProjectCreate = can('project.create');
   const canProjectUpdate = can('project.update');
@@ -2296,10 +2630,14 @@ function AppShell({
   const canRbacUpdate = can('rbac.update');
 
   useEffect(() => {
+    if (!user?.permissions?.length) return;
+    if (modules.length === 0 && canModuleRead) return;
+
     const isRouteForbidden =
       (location.pathname.startsWith('/users') && !canUsersRead) ||
       (location.pathname.startsWith('/audit-logs') && !canAuditRead) ||
       (location.pathname.startsWith('/projects') && !canProjectRead) ||
+      (location.pathname.startsWith('/emails') && !canDashboardRead) ||
       (location.pathname.startsWith('/hr') && !canHrRead) ||
       (location.pathname.startsWith('/settings/system') && !canSettingsRead) ||
       (location.pathname.startsWith('/settings/modules') && !canModuleRead) ||
@@ -2317,14 +2655,19 @@ function AppShell({
     }
   }, [
     canAuditRead,
+    canDashboardRead,
     canHrRead,
     canModuleRead,
     canProjectRead,
     canUsersRead,
+    canRbacRead,
+    canSettingsRead,
     enabledModuleCodes,
     location.pathname,
     message,
+    modules.length,
     navigate,
+    user?.permissions?.length,
   ]);
 
   useEffect(() => {
@@ -2352,9 +2695,15 @@ function AppShell({
         if (segments.length === 2 && segments[1] !== 'users') items.push({ title: '详情' });
       }
     } else if (location.pathname.startsWith('/projects')) {
-      items.push({ title: '项目管理' });
+      items.push({ title: <Link to="/projects">项目管理</Link> });
+      if (location.pathname.endsWith('/create')) items.push({ title: '新建' });
+      else if (location.pathname.endsWith('/edit')) items.push({ title: '编辑' });
+      else if (location.pathname !== '/projects') items.push({ title: '详情' });
     } else if (location.pathname.startsWith('/hr/employees')) {
-      items.push({ title: '人员管理' });
+      items.push({ title: <Link to="/hr/employees">人员管理</Link> });
+      if (location.pathname.endsWith('/create')) items.push({ title: '新建' });
+      else if (location.pathname.endsWith('/edit')) items.push({ title: '编辑' });
+      else if (location.pathname !== '/hr/employees') items.push({ title: '详情' });
     } else if (location.pathname.startsWith('/settings/modules')) {
       items.push({ title: '配置' }, { title: '模块管理' });
     } else if (location.pathname.startsWith('/settings/rbac')) {
@@ -2602,17 +2951,47 @@ function AppShell({
               ) : null}
 
               {canProjectRead ? (
-                <Route
-                  path="/projects"
-                  element={<ProjectPage canCreate={canProjectCreate} canUpdate={canProjectUpdate} />}
-                />
+                <>
+                  <Route
+                    path="/projects"
+                    element={<ProjectPage canCreate={canProjectCreate} canUpdate={canProjectUpdate} />}
+                  />
+                  <Route
+                    path="/projects/create"
+                    element={<ProjectFormPage mode="create" canCreate={canProjectCreate} canUpdate={canProjectUpdate} />}
+                  />
+                  <Route
+                    path="/projects/:id"
+                    element={<ProjectShowPage canUpdate={canProjectUpdate} />}
+                  />
+                  <Route
+                    path="/projects/:id/edit"
+                    element={<ProjectFormPage mode="edit" canCreate={canProjectCreate} canUpdate={canProjectUpdate} />}
+                  />
+                </>
               ) : null}
 
+              {canDashboardRead ? <Route path="/emails/send" element={<EmailSendCenterPage />} /> : null}
+
               {canHrRead ? (
-                <Route
-                  path="/hr/employees"
-                  element={<HrEmployeesPage canCreate={canHrCreate} canUpdate={canHrUpdate} />}
-                />
+                <>
+                  <Route
+                    path="/hr/employees"
+                    element={<HrEmployeesPage canCreate={canHrCreate} canUpdate={canHrUpdate} />}
+                  />
+                  <Route
+                    path="/hr/employees/create"
+                    element={<HrEmployeeFormPage mode="create" canCreate={canHrCreate} canUpdate={canHrUpdate} />}
+                  />
+                  <Route
+                    path="/hr/employees/:id"
+                    element={<HrEmployeeShowPage canUpdate={canHrUpdate} />}
+                  />
+                  <Route
+                    path="/hr/employees/:id/edit"
+                    element={<HrEmployeeFormPage mode="edit" canCreate={canHrCreate} canUpdate={canHrUpdate} />}
+                  />
+                </>
               ) : null}
 
               {canModuleRead ? (
@@ -2631,7 +3010,11 @@ function AppShell({
               ) : null}
 
               {canRbacRead ? (
-                <Route path="/settings/rbac" element={<RbacSettingsPage canUpdate={canRbacUpdate} />} />
+                <>
+                  <Route path="/settings/rbac" element={<RbacRoleListPage canUpdate={canRbacUpdate} />} />
+                  <Route path="/settings/rbac/create" element={<RbacRoleEditorPage canUpdate={canRbacUpdate} />} />
+                  <Route path="/settings/rbac/:code" element={<RbacRoleEditorPage canUpdate={canRbacUpdate} />} />
+                </>
               ) : null}
 
               {canAuditRead ? <Route path="/audit-logs" element={<AuditLogsPage />} /> : null}
