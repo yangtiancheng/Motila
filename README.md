@@ -42,6 +42,7 @@
   - 支持手动清空 `logoImage` 文本后保存删除
 - Footer 支持部分超链接 Markdown：`[文本](https://example.com)`
 - 后端 body limit：`2mb`（支持 base64 Logo 上传）
+- 登录页浏览器标题：优先使用系统配置生效项 `title`，无配置时为 `Welcome to Motila`
 
 - RBAC 分配用户弹窗支持全量用户拉取（`pageSize=0`），避免分页校验报错
 - 新增权限点：`settings.read`、`settings.update`

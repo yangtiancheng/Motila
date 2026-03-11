@@ -2433,6 +2433,31 @@ function App() {
   const effectiveSkin = resolveEffectiveSkin(skin, systemPrefersDark);
   const authTheme = getThemeBySkin(effectiveSkin, branding);
   const isAuthed = !!token && !!user;
+  const [publicSystemTitle, setPublicSystemTitle] = useState<string>('Welcome to Motila');
+
+  useEffect(() => {
+    if (isAuthed) return;
+
+    let cancelled = false;
+    api<SystemConfigItem | null>('/system-configs/active')
+      .then((config) => {
+        if (cancelled) return;
+        setPublicSystemTitle(config?.title?.trim() || 'Welcome to Motila');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPublicSystemTitle('Welcome to Motila');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthed]);
+
+  useEffect(() => {
+    if (isAuthed) return;
+    document.title = publicSystemTitle;
+  }, [isAuthed, publicSystemTitle]);
 
   const onSubmitAuth = async (values: { username: string; email?: string; name?: string; password: string }) => {
     setAuthLoading(true);
