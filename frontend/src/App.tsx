@@ -7,7 +7,9 @@ import {
   ColorPicker,
   ConfigProvider,
   Dropdown,
+  Drawer,
   Form,
+  Grid,
   Input,
   Layout,
   Menu,
@@ -22,6 +24,7 @@ import {
   Upload,
   Avatar,
 } from 'antd';
+import { MenuOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AuditLogsPage } from './audit/AuditLogsPage';
@@ -48,7 +51,7 @@ import {
 } from './users/user-list-query.schema';
 import './App.css';
 
-const API_BASE = `http://${window.location.hostname}:3000`;
+const API_BASE = '/api';
 
 type UserRole = 'ADMIN' | 'USER';
 
@@ -1896,6 +1899,31 @@ function AppShell({
     flatMenuItems.find((item) => item.path && location.pathname.startsWith(item.path))?.key ??
     flatMenuItems[0]?.key;
 
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const navigationMenuItems = menuItems.map((item) => ({
+    key: item.key,
+    icon: item.icon,
+    label: item.label,
+    children: item.children
+      ? item.children.map((child) => ({
+          key: child.key,
+          icon: child.icon,
+          label: child.label,
+          onClick: () => {
+            if (child.path) navigate(child.path);
+            if (isMobile) setMobileMenuOpen(false);
+          },
+        }))
+      : undefined,
+    onClick: () => {
+      if (item.path) navigate(item.path);
+      if (isMobile) setMobileMenuOpen(false);
+    },
+  }));
+
   const canUsersRead = can('users.read');
   const canProjectRead = can('project.read');
   const canProjectCreate = can('project.create');
@@ -1943,6 +1971,15 @@ function AppShell({
     message,
     navigate,
   ]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileMenuOpen(false);
+      return;
+    }
+
+    setMobileMenuOpen(false);
+  }, [isMobile, location.pathname]);
 
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
@@ -2096,49 +2133,39 @@ function AppShell({
   return (
     <ConfigProvider theme={activeTheme}>
       <Layout className={`app-layout skin-${effectiveSkin}`}>
-        <Layout.Sider theme="light" width={220} className="app-sider">
-          <div
-            className="logo"
-            role="button"
-            tabIndex={0}
-            onClick={() => navigate('/dashboard')}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') navigate('/dashboard');
-            }}
-          >
-            {logoSrc ? (
-              <img src={logoSrc} alt={activeSystemConfig?.name ?? 'logo'} className="logo-image" />
-            ) : (
-              logoLabel
-            )}
-          </div>
-          <Menu
-            mode="inline"
-            selectedKeys={selectedMenuKey ? [selectedMenuKey] : []}
-            items={menuItems.map((item) => ({
-              key: item.key,
-              icon: item.icon,
-              label: item.label,
-              children: item.children
-                ? item.children.map((child) => ({
-                    key: child.key,
-                    icon: child.icon,
-                    label: child.label,
-                    onClick: () => {
-                      if (child.path) navigate(child.path);
-                    },
-                  }))
-                : undefined,
-              onClick: () => {
-                if (item.path) navigate(item.path);
-              },
-            }))}
-          />
-        </Layout.Sider>
+        {!isMobile ? (
+          <Layout.Sider theme="light" width={220} className="app-sider">
+            <div
+              className="logo"
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate('/dashboard')}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') navigate('/dashboard');
+              }}
+            >
+              {logoSrc ? (
+                <img src={logoSrc} alt={activeSystemConfig?.name ?? 'logo'} className="logo-image" />
+              ) : (
+                logoLabel
+              )}
+            </div>
+            <Menu mode="inline" selectedKeys={selectedMenuKey ? [selectedMenuKey] : []} items={navigationMenuItems} />
+          </Layout.Sider>
+        ) : null}
 
         <Layout>
           <Layout.Header className="app-header">
             <div className="header-left">
+              {isMobile ? (
+                <Button
+                  type="text"
+                  className="mobile-menu-button"
+                  icon={<MenuOutlined />}
+                  onClick={() => setMobileMenuOpen(true)}
+                  aria-label="打开菜单"
+                />
+              ) : null}
               <Breadcrumb items={breadcrumbItems} className="header-breadcrumb" />
             </div>
 
@@ -2260,6 +2287,18 @@ function AppShell({
           </Layout.Content>
           <Layout.Footer className="app-footer">{renderFooterContent(footerText)}</Layout.Footer>
         </Layout>
+
+        <Drawer
+          title={logoLabel}
+          placement="left"
+          width={260}
+          open={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
+          className="mobile-menu-drawer"
+          bodyStyle={{ padding: 0 }}
+        >
+          <Menu mode="inline" selectedKeys={selectedMenuKey ? [selectedMenuKey] : []} items={navigationMenuItems} />
+        </Drawer>
 
         <Modal
           title="修改密码"

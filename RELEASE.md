@@ -4,7 +4,9 @@
 > 维护方式：每次迭代结束更新「已完成」与「下一迭代计划」
 > 更新时间：2026-03-11
 
-- 修复生产域名访问前端报错：Vite 新增 `server.allowedHosts`，允许 `yangtiancheng.cn` 与 `www.yangtiancheng.cn`
+- 移动端导航优化：手机端新增顶部菜单按钮 + Drawer 抽屉菜单，解决左侧菜单自动折叠后无法选择的问题
+- 菜单交互优化：移动端点击菜单项后自动关闭抽屉，避免遮挡内容
+- API 请求基址统一为相对路径 `/api`，为 HTTPS + 反向代理场景打通前后端联调
 - 新增系统配置 Logo 上传能力（png/jpg/webp），并支持保存为 `logoImage`
 - Logo 展示优先级调整：`logoImage` > `logoUrl` > 默认文案
 - 修复系统配置创建时 `logoUrl` 为空触发 URL 校验报错问题
