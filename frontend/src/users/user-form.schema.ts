@@ -2,7 +2,7 @@ import { applySchemaTransforms, type SchemaField } from '../shared/form/schema.t
 
 export type UserFormValues = {
   username: string;
-  email: string;
+  email?: string;
   name: string;
   avatarImage?: string;
   avatarUrl?: string;
@@ -11,7 +11,7 @@ export type UserFormValues = {
 };
 
 export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[] {
-  return [
+  const fields: SchemaField<UserFormValues>[] = [
     {
       name: 'username',
       label: '用户名',
@@ -19,13 +19,6 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
       required: true,
       min: 4,
       message: '用户名至少4位，仅支持字母数字下划线',
-    },
-    {
-      name: 'email',
-      label: '邮箱',
-      type: 'input',
-      required: true,
-      message: '请输入正确邮箱',
     },
     {
       name: 'name',
@@ -74,6 +67,18 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
       ],
     },
   ];
+
+  if (!isEdit) {
+    fields.splice(1, 0, {
+      name: 'email',
+      label: '邮箱',
+      type: 'input',
+      required: true,
+      message: '请输入正确邮箱',
+    });
+  }
+
+  return fields;
 }
 
 export function normalizeUserFormValues(values: UserFormValues): UserFormValues {
@@ -81,7 +86,7 @@ export function normalizeUserFormValues(values: UserFormValues): UserFormValues 
     (input) => ({
       ...input,
       username: input.username.trim(),
-      email: input.email.trim(),
+      email: input.email?.trim() ? input.email.trim() : undefined,
       name: input.name.trim(),
       avatarImage: input.avatarImage?.trim() ? input.avatarImage.trim() : undefined,
       avatarUrl: input.avatarUrl?.trim() ? input.avatarUrl.trim() : undefined,

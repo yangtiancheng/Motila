@@ -1,4 +1,5 @@
-import { Button, Form, Input, Select, Space, Upload } from 'antd';
+import { CloseCircleFilled } from '@ant-design/icons';
+import { Button, Form, Input, Select, Upload } from 'antd';
 import { useWatch } from 'antd/es/form/Form';
 import type { FormInstance, Rule } from 'antd/es/form';
 import type { SchemaField } from './schema.types';
@@ -75,36 +76,46 @@ export function SchemaForm<TValues extends Record<string, unknown>>({
                 </Form.Item>
               ) : null}
               {field.type === 'upload' ? (
-                <Space direction="vertical" style={{ width: '100%' }}>
+                <div className="avatar-upload-cell">
                   <Upload
                     beforeUpload={(file) => uploadBase64(field.name, file as File)}
                     showUploadList={false}
                     accept={field.accept ?? 'image/png,image/jpeg,image/webp'}
                     disabled={disabled}
                   >
-                    <Button disabled={disabled}>上传图片</Button>
+                    <div className={`avatar-upload-box ${disabled ? 'is-disabled' : ''}`}>
+                      {values[field.name] ? (
+                        <img
+                          src={String(values[field.name])}
+                          alt={`${String(field.name)}-preview`}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : field.previewFallbackName && values[field.previewFallbackName] ? (
+                        <img
+                          src={String(values[field.previewFallbackName])}
+                          alt={`${String(field.previewFallbackName)}-preview`}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <div className="avatar-upload-placeholder">点击头像上传</div>
+                      )}
+                    </div>
                   </Upload>
-                  <Form.Item name={String(field.name)} rules={rules} noStyle>
-                    <Input.TextArea
-                      rows={3}
-                      placeholder={field.placeholder ?? '也可粘贴 data:image/...;base64,...'}
-                      disabled={disabled}
-                    />
-                  </Form.Item>
+
                   {values[field.name] ? (
-                    <img
-                      src={String(values[field.name])}
-                      alt={`${String(field.name)}-preview`}
-                      style={{ maxWidth: 160, maxHeight: 160, objectFit: 'cover', border: '1px solid #e2e8f0', borderRadius: 8, padding: 4, background: '#fff' }}
-                    />
-                  ) : field.previewFallbackName && values[field.previewFallbackName] ? (
-                    <img
-                      src={String(values[field.previewFallbackName])}
-                      alt={`${String(field.previewFallbackName)}-preview`}
-                      style={{ maxWidth: 160, maxHeight: 160, objectFit: 'cover', border: '1px solid #e2e8f0', borderRadius: 8, padding: 4, background: '#fff' }}
+                    <CloseCircleFilled
+                      className="avatar-upload-remove"
+                      onClick={() => {
+                        if (disabled) return;
+                        form.setFieldValue(field.name as any, undefined);
+                      }}
                     />
                   ) : null}
-                </Space>
+
+                  <Form.Item name={String(field.name)} rules={rules} noStyle>
+                    <Input.TextArea style={{ display: 'none' }} rows={1} />
+                  </Form.Item>
+                </div>
               ) : null}
             </Form.Item>
           );

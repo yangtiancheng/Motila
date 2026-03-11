@@ -318,7 +318,7 @@ function UserFormCard({
   title: string;
   initialValues?: Partial<{
     username: string;
-    email: string;
+    email?: string;
     name: string;
     avatarImage: string;
     avatarUrl: string;
@@ -329,7 +329,7 @@ function UserFormCard({
   submitText: string;
   onSubmit: (values: {
     username: string;
-    email: string;
+    email?: string;
     name: string;
     avatarImage?: string;
     avatarUrl?: string;
@@ -339,7 +339,7 @@ function UserFormCard({
 }) {
   const [form] = Form.useForm<{
     username: string;
-    email: string;
+    email?: string;
     name: string;
     avatarImage?: string;
     avatarUrl?: string;
@@ -364,7 +364,7 @@ function UserFormCard({
         submitText={submitText}
         onFinish={async (values: {
           username: string;
-          email: string;
+          email?: string;
           name: string;
           avatarImage?: string;
           avatarUrl?: string;
