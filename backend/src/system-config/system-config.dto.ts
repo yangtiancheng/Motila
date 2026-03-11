@@ -44,7 +44,7 @@ export class UpdateSystemConfigDto {
 
   @IsOptional()
   @IsString()
-  logoImage?: string;
+  logoImage?: string | null;
 
   @IsOptional()
   @IsString()
