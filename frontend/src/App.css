@@ -466,3 +466,17 @@ body {
   color: inherit;
   text-decoration: underline;
 }
+
+/* 统一卡片头：隐藏默认标题，保留筛选/操作区 */
+.ant-card .ant-card-head-title {
+  display: none;
+}
+
+.ant-card .ant-card-head {
+  min-height: 48px;
+}
+
+.ant-card .ant-card-extra {
+  margin-inline-start: 0;
+  width: 100%;
+}
