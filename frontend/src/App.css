@@ -505,3 +505,36 @@ body {
 .app-content .ant-space-item {
   border-radius: 0 !important;
 }
+
+/* 框架层列表页紧凑化（按最新要求） */
+.app-content {
+  padding: 0 !important;
+}
+
+.app-content .ant-space.ant-space-vertical {
+  gap: 8px !important;
+}
+
+.app-content .ant-space.ant-space-vertical > .ant-space-item {
+  margin-bottom: 0 !important;
+}
+
+/* 表格单元格内边距缩小约一半 */
+.app-content .ant-table-wrapper .ant-table-thead > tr > th,
+.app-content .ant-table-wrapper .ant-table-tbody > tr > td {
+  padding: 8px 8px !important;
+}
+
+/* 去掉列表区域所有圆角 */
+.app-content .ant-card,
+.app-content .ant-card-head,
+.app-content .ant-card-body,
+.app-content .ant-table-container,
+.app-content .ant-table,
+.app-content .ant-btn,
+.app-content .ant-input,
+.app-content .ant-input-affix-wrapper,
+.app-content .ant-select-selector,
+.app-content .ant-picker {
+  border-radius: 0 !important;
+}
