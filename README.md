@@ -39,6 +39,7 @@
 - 编辑体验优化：
   - 编辑/新建改为页面内标准编辑区（非弹窗）
   - 支持一键删除已上传 Logo 图片（清空 `logoImage`）
+  - 支持手动清空 `logoImage` 文本后保存删除
 - Footer 支持部分超链接 Markdown：`[文本](https://example.com)`
 
 - RBAC 分配用户弹窗支持全量用户拉取（`pageSize=0`），避免分页校验报错

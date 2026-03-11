@@ -764,6 +764,7 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
         title: values.title?.trim(),
         logoUrl: values.logoUrl?.trim() ? values.logoUrl.trim() : undefined,
         logoImage: values.logoImage?.trim() ? values.logoImage.trim() : null,
+        removeLogoImage: !values.logoImage?.trim(),
         footerText: values.footerText?.trim() ? values.footerText.trim() : undefined,
       };
       setSaving(true);
