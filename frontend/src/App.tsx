@@ -692,7 +692,7 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState<SystemConfigItem[]>([]);
   const [editing, setEditing] = useState<SystemConfigItem | null>(null);
-  const [open, setOpen] = useState(false);
+  const [formVisible, setFormVisible] = useState(false);
   const [form] = Form.useForm<{
     name: string;
     title: string;
@@ -721,7 +721,7 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
   const openCreate = () => {
     setEditing(null);
     form.setFieldsValue({ name: '', title: '', logoUrl: '', logoImage: '', footerText: '', isActive: false });
-    setOpen(true);
+    setFormVisible(true);
   };
 
   const openEdit = (record: SystemConfigItem) => {
@@ -734,7 +734,7 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
       footerText: record.footerText ?? '',
       isActive: record.isActive,
     });
-    setOpen(true);
+    setFormVisible(true);
   };
 
   const onUploadLogo = (file: File) => {
@@ -748,6 +748,48 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
     };
     reader.readAsDataURL(file);
     return false;
+  };
+
+  const clearLogoImage = () => {
+    form.setFieldValue('logoImage', '');
+    message.success('已移除 Logo 图片');
+  };
+
+  const submitForm = async () => {
+    try {
+      const values = await form.validateFields();
+      const payload = {
+        ...values,
+        name: values.name?.trim(),
+        title: values.title?.trim(),
+        logoUrl: values.logoUrl?.trim() ? values.logoUrl.trim() : undefined,
+        logoImage: values.logoImage?.trim() ? values.logoImage.trim() : null,
+        footerText: values.footerText?.trim() ? values.footerText.trim() : undefined,
+      };
+      setSaving(true);
+      if (editing) {
+        await api(`/system-configs/${editing.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        }, true);
+        message.success('配置已更新');
+      } else {
+        await api('/system-configs', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        }, true);
+        message.success('配置已创建');
+      }
+      setFormVisible(false);
+      setEditing(null);
+      await fetchRows();
+      onConfigApplied();
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('validate')) return;
+      message.error(parseError(error));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -810,88 +852,74 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
         />
       </Card>
 
-      <Modal
-        title={editing ? '编辑配置' : '新建配置'}
-        open={open}
-        onCancel={() => setOpen(false)}
-        onOk={async () => {
-          try {
-            const values = await form.validateFields();
-            const payload = {
-              ...values,
-              name: values.name?.trim(),
-              title: values.title?.trim(),
-              logoUrl: values.logoUrl?.trim() ? values.logoUrl.trim() : undefined,
-              logoImage: values.logoImage?.trim() ? values.logoImage.trim() : undefined,
-              footerText: values.footerText?.trim() ? values.footerText.trim() : undefined,
-            };
-            setSaving(true);
-            if (editing) {
-              await api(`/system-configs/${editing.id}`, {
-                method: 'PATCH',
-                body: JSON.stringify(payload),
-              }, true);
-              message.success('配置已更新');
-            } else {
-              await api('/system-configs', {
-                method: 'POST',
-                body: JSON.stringify(payload),
-              }, true);
-              message.success('配置已创建');
-            }
-            setOpen(false);
-            await fetchRows();
-            onConfigApplied();
-          } catch (error) {
-            if (error instanceof Error && error.message.includes('validate')) return;
-            message.error(parseError(error));
-          } finally {
-            setSaving(false);
-          }
-        }}
-        confirmLoading={saving}
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item label="系统名称" name="name" rules={[{ required: true, min: 2 }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="系统标题" name="title" rules={[{ required: true, min: 2 }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="系统Logo URL" name="logoUrl">
-            <Input placeholder="https://..." />
-          </Form.Item>
-          <Form.Item label="系统Logo 上传" name="logoImage" extra="支持 png/jpg/webp，上传后优先于 logoUrl 生效">
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Upload beforeUpload={onUploadLogo} showUploadList={false} accept="image/png,image/jpeg,image/webp">
-                <Button>上传图片</Button>
-              </Upload>
-              <Input.TextArea rows={3} placeholder="也可粘贴 data:image/...;base64,..." />
+      {formVisible ? (
+        <Card
+          title={editing ? '编辑系统配置' : '新建系统配置'}
+          extra={
+            <Space>
+              <Button
+                onClick={() => {
+                  setFormVisible(false);
+                  setEditing(null);
+                }}
+              >
+                取消
+              </Button>
+              <Button type="primary" loading={saving} onClick={() => void submitForm()} disabled={!canUpdate}>
+                {editing ? '保存修改' : '创建配置'}
+              </Button>
             </Space>
-          </Form.Item>
-          <Form.Item shouldUpdate noStyle>
-            {() => {
-              const image = form.getFieldValue('logoImage') || form.getFieldValue('logoUrl');
-              if (!image) return null;
-              return (
-                <Form.Item label="Logo预览">
-                  <img
-                    src={image}
-                    alt="logo-preview"
-                    style={{ maxWidth: 220, maxHeight: 72, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 6, padding: 6, background: '#fff' }}
-                  />
+          }
+        >
+          <Form form={form} layout="vertical">
+            <Form.Item label="系统名称" name="name" rules={[{ required: true, min: 2 }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item label="系统标题" name="title" rules={[{ required: true, min: 2 }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item label="系统Logo URL" name="logoUrl">
+              <Input placeholder="https://..." />
+            </Form.Item>
+            <Form.Item label="系统Logo 上传" extra="支持 png/jpg/webp，上传后优先于 logoUrl 生效">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space>
+                  <Upload beforeUpload={onUploadLogo} showUploadList={false} accept="image/png,image/jpeg,image/webp">
+                    <Button>上传图片</Button>
+                  </Upload>
+                  <Button danger onClick={clearLogoImage}>
+                    删除已上传Logo
+                  </Button>
+                </Space>
+                <Form.Item name="logoImage" noStyle>
+                  <Input.TextArea rows={3} placeholder="也可粘贴 data:image/...;base64,..." />
                 </Form.Item>
-              );
-            }}
-          </Form.Item>
-          <Form.Item label="Footer文字" name="footerText" extra="支持 Markdown 链接格式：[文本](https://example.com)">
-            <Input />
-          </Form.Item>
-          <Form.Item label="有效" name="isActive" valuePropName="checked">
-            <Checkbox>启用该配置</Checkbox>
-          </Form.Item>
-        </Form>
-      </Modal>
+              </Space>
+            </Form.Item>
+            <Form.Item shouldUpdate noStyle>
+              {() => {
+                const image = form.getFieldValue('logoImage') || form.getFieldValue('logoUrl');
+                if (!image) return null;
+                return (
+                  <Form.Item label="Logo预览">
+                    <img
+                      src={image}
+                      alt="logo-preview"
+                      style={{ maxWidth: 220, maxHeight: 72, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 6, padding: 6, background: '#fff' }}
+                    />
+                  </Form.Item>
+                );
+              }}
+            </Form.Item>
+            <Form.Item label="Footer文字" name="footerText" extra="支持 Markdown 链接格式：[文本](https://example.com)">
+              <Input />
+            </Form.Item>
+            <Form.Item label="有效" name="isActive" valuePropName="checked">
+              <Checkbox>启用该配置</Checkbox>
+            </Form.Item>
+          </Form>
+        </Card>
+      ) : null}
     </Space>
   );
 }
