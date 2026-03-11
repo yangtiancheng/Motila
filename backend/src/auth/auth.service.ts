@@ -106,15 +106,24 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { username: dto.username },
+    const username = dto.username?.trim();
+    const email = dto.email?.trim().toLowerCase();
+
+    if (!username && !email) {
+      return { ok: false, message: '请填写用户名或邮箱' };
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          ...(username ? [{ username }] : []),
+          ...(email ? [{ email }] : []),
+        ],
+      },
       select: { id: true, email: true, name: true, username: true },
     });
 
     if (!user) return { ok: true, message: '如果账号存在，重置邮件已发送' };
-    if (dto.email && dto.email.toLowerCase() !== user.email.toLowerCase()) {
-      return { ok: true, message: '如果账号存在，重置邮件已发送' };
-    }
 
     const config = await this.emailConfigService.getConfigWithSecret(user.id);
     if (!config?.secret) {

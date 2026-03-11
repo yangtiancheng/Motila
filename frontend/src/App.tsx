@@ -2672,7 +2672,7 @@ function App() {
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
 
   const [authForm] = Form.useForm<{ username: string; email?: string; name?: string; password: string }>();
-  const [forgotForm] = Form.useForm<{ username: string; email?: string }>();
+  const [forgotForm] = Form.useForm<{ username?: string; email?: string }>();
 
   const [token, setToken] = useState<string>(() => localStorage.getItem('motila_token') ?? '');
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -2795,11 +2795,15 @@ function App() {
   const onSubmitForgotPassword = async () => {
     try {
       const values = await forgotForm.validateFields();
+      if (!values.username?.trim() && !values.email?.trim()) {
+        message.warning('请至少填写用户名或邮箱');
+        return;
+      }
       setForgotSubmitting(true);
       const res = await api<{ ok: boolean; message: string }>('/auth/forgot-password', {
         method: 'POST',
         body: JSON.stringify({
-          username: values.username.trim(),
+          username: values.username?.trim() ? values.username.trim() : undefined,
           email: values.email?.trim() ? values.email.trim() : undefined,
         }),
       });
@@ -2919,13 +2923,13 @@ function App() {
           destroyOnClose
         >
           <Form form={forgotForm} layout="vertical">
-            <Form.Item label="用户名" name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-              <Input placeholder="请输入用户名" />
+            <Form.Item label="用户名（可选）" name="username">
+              <Input placeholder="请输入用户名（或只填邮箱）" />
             </Form.Item>
-            <Form.Item label="邮箱（可选，用于二次校验）" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }]}>
-              <Input placeholder="you@example.com" />
+            <Form.Item label="邮箱（可选）" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }]}>
+              <Input placeholder="you@example.com（或只填用户名）" />
             </Form.Item>
-            <Typography.Text type="secondary">系统会发送临时密码到该用户已绑定邮箱。</Typography.Text>
+            <Typography.Text type="secondary">用户名和邮箱填一个就行。系统会发送临时密码到该用户已绑定邮箱。</Typography.Text>
           </Form>
         </Modal>
       </ConfigProvider>
