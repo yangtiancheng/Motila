@@ -12,6 +12,7 @@
 - 新增系统配置 Logo 上传能力（png/jpg/webp），并支持保存为 `logoImage`
 - Logo 展示优先级调整：`logoImage` > `logoUrl` > 默认文案
 - 修复系统配置创建时 `logoUrl` 为空触发 URL 校验报错问题
+- 修复系统配置创建时报错 `property removeLogoImage should not exist`：前端仅在编辑(PATCH)时提交 `removeLogoImage`，新建(POST)不再携带该字段
 
 - 用户头像支持上传图片（base64）与预览，展示优先级：avatarImage > avatarUrl
 - 修复系统配置 logoImage 未持久化导致左上角 Logo 不显示的问题

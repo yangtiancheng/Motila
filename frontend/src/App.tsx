@@ -758,17 +758,20 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
   const submitForm = async () => {
     try {
       const values = await form.validateFields();
-      const payload = {
+      const basePayload = {
         ...values,
         name: values.name?.trim(),
         title: values.title?.trim(),
         logoUrl: values.logoUrl?.trim() ? values.logoUrl.trim() : undefined,
         logoImage: values.logoImage?.trim() ? values.logoImage.trim() : null,
-        removeLogoImage: !values.logoImage?.trim(),
         footerText: values.footerText?.trim() ? values.footerText.trim() : undefined,
       };
       setSaving(true);
       if (editing) {
+        const payload = {
+          ...basePayload,
+          removeLogoImage: !values.logoImage?.trim(),
+        };
         await api(`/system-configs/${editing.id}`, {
           method: 'PATCH',
           body: JSON.stringify(payload),
@@ -777,7 +780,7 @@ function SystemConfigPage({ canUpdate, onConfigApplied }: { canUpdate: boolean; 
       } else {
         await api('/system-configs', {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: JSON.stringify(basePayload),
         }, true);
         message.success('配置已创建');
       }
