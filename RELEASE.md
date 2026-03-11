@@ -8,7 +8,7 @@
 - 菜单交互优化：移动端点击菜单项后自动关闭抽屉，避免遮挡内容
 - API 请求基址统一为相对路径 `/api`，为 HTTPS + 反向代理场景打通前后端联调
 - 配置页优化：系统配置“编辑/新建”由弹窗改为页面内标准编辑区（Card）
-- 登录页浏览器标题优化：优先读取系统配置生效项的 `title`，无配置时默认 `Welcome to Motila`
+- 修复登录页标题首屏闪烁：`index.html` 默认标题从 `frontend` 调整为 `Welcome to Motila`
 - 新增系统配置 Logo 上传能力（png/jpg/webp），并支持保存为 `logoImage`
 - Logo 展示优先级调整：`logoImage` > `logoUrl` > 默认文案
 - 修复系统配置创建时 `logoUrl` 为空触发 URL 校验报错问题
