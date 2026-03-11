@@ -126,9 +126,24 @@ export class AuthService {
 
     if (!user) return { ok: false, message: '用户名或邮箱不存在' };
 
-    const config = await this.emailConfigService.getConfigWithSecret(user.id);
+    const configOwner = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ username: 'admin' }, { role: UserRole.ADMIN }],
+        emailConfig: {
+          isNot: null,
+        },
+      },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (!configOwner?.id) {
+      return { ok: false, message: '管理员邮箱未配置，请联系管理员处理' };
+    }
+
+    const config = await this.emailConfigService.getConfigWithSecret(configOwner.id);
     if (!config?.secret) {
-      return { ok: false, message: '未配置可用邮箱，请联系管理员重置密码' };
+      return { ok: false, message: '管理员邮箱未配置，请联系管理员处理' };
     }
 
     const tempPassword = this.generateTempPassword();
