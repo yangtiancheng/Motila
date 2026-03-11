@@ -113,17 +113,18 @@ export class AuthService {
       return { ok: false, message: '请填写用户名或邮箱' };
     }
 
+    const where = username && email
+      ? { username, email }
+      : username
+        ? { username }
+        : { email: email! };
+
     const user = await this.prisma.user.findFirst({
-      where: {
-        OR: [
-          ...(username ? [{ username }] : []),
-          ...(email ? [{ email }] : []),
-        ],
-      },
+      where,
       select: { id: true, email: true, name: true, username: true },
     });
 
-    if (!user) return { ok: true, message: '如果账号存在，重置邮件已发送' };
+    if (!user) return { ok: false, message: '用户名或邮箱不存在' };
 
     const config = await this.emailConfigService.getConfigWithSecret(user.id);
     if (!config?.secret) {
