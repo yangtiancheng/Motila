@@ -40,6 +40,7 @@
   - 编辑/新建改为页面内标准编辑区（非弹窗）
   - 支持一键删除已上传 Logo 图片（清空 `logoImage`）
   - 支持手动清空 `logoImage` 文本后保存删除
+  - 兼容创建/编辑接口差异：`removeLogoImage` 仅在编辑(PATCH)提交，避免创建(POST)校验报错
 - Footer 支持部分超链接 Markdown：`[文本](https://example.com)`
 - 后端 body limit：`2mb`（支持 base64 Logo 上传）
 - 登录页浏览器标题：优先使用系统配置生效项 `title`，无配置时为 `Welcome to Motila`
