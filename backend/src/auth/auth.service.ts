@@ -166,9 +166,16 @@ export class AuthService {
       },
     });
 
+    const targetMailbox = await this.prisma.userEmailConfig.findUnique({
+      where: { userId: user.id },
+      select: { emailAddress: true },
+    });
+
+    const to = targetMailbox?.emailAddress || user.email;
+
     await transporter.sendMail({
       from: config.emailAddress,
-      to: user.email,
+      to,
       subject: '[Motila] 密码重置通知',
       text: `你好${user.name ? `，${user.name}` : ''}，\n\n你的 Motila 临时密码为：${tempPassword}\n请登录后立即在个人信息中修改密码。\n\n（系统自动发送，请勿回复）`,
     });
