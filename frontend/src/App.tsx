@@ -1007,43 +1007,18 @@ function ThemeSettingsPage({
   );
 }
 
-function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
-  const { message } = AntdApp.useApp();
-  const [roles, setRoles] = useState<RoleSummary[]>([]);
-  const [permissions, setPermissions] = useState<PermissionItem[]>([]);
-  const [modules, setModules] = useState<ModuleItem[]>([]);
+function RbacRoleListPage({ canUpdate }: { canUpdate: boolean }) {
+  const { message, modal } = AntdApp.useApp();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [savingPermissions, setSavingPermissions] = useState(false);
-  const [savingModules, setSavingModules] = useState(false);
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
-  const [roleModalLoading, setRoleModalLoading] = useState(false);
-  const [editingRole, setEditingRole] = useState<RoleSummary | null>(null);
-  const [selectedRoleCode, setSelectedRoleCode] = useState<string>('');
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
-  const [selectedModules, setSelectedModules] = useState<string[]>([]);
-  const [roleForm] = Form.useForm<RoleFormValues>();
-  const [users, setUsers] = useState<UserItem[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [assignUsersMode, setAssignUsersMode] = useState(false);
+  const [roles, setRoles] = useState<RoleSummary[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
-  const refreshAll = async () => {
+  const fetchRoles = async () => {
     setLoading(true);
     try {
-      const [roleData, permissionData, moduleData] = await Promise.all([
-        api<ListRolesResponse>('/rbac/roles', undefined, true),
-        api<ListPermissionsResponse>('/rbac/permissions', undefined, true),
-        api<ModuleItem[]>('/modules', undefined, true).catch(() => [] as ModuleItem[]),
-      ]);
+      const roleData = await api<ListRolesResponse>('/rbac/roles', undefined, true);
       setRoles(roleData);
-      setPermissions(permissionData);
-      setModules(moduleData);
-
-      if (!selectedRoleCode && roleData.length > 0) {
-        const first = roleData[0];
-        setSelectedRoleCode(first.code);
-        setSelectedPermissions(first.permissions ?? []);
-        setSelectedModules(first.modules ?? []);
-      }
     } catch (error) {
       message.error(parseError(error));
     } finally {
@@ -1052,120 +1027,98 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
   };
 
   useEffect(() => {
-    void refreshAll();
-    // eslint-disable-next-line react-hooks-exhaustive-deps
+    void fetchRoles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!selectedRoleCode) return;
-    const role = roles.find((item) => item.code === selectedRoleCode);
-    if (!role) return;
-    setSelectedPermissions(role.permissions ?? []);
-    setSelectedModules(role.modules ?? []);
-  }, [roles, selectedRoleCode]);
+  const batchDelete = async () => {
+    const selectedCodes = selectedRowKeys.map(String);
+    if (!selectedCodes.length) return;
 
-  const openCreateRole = () => {
-    setEditingRole(null);
-    setAssignUsersMode(false);
-    roleForm.resetFields();
-    setRoleModalOpen(true);
-  };
+    const protectedCodes = roles
+      .filter((r) => selectedCodes.includes(r.code) && r.isSystem)
+      .map((r) => r.code);
 
-  const openEditRole = (role: RoleSummary) => {
-    setEditingRole(role);
-    setAssignUsersMode(false);
-    roleForm.setFieldsValue({
-      code: role.code,
-      name: role.name,
-      description: role.description ?? '',
+    if (protectedCodes.length > 0) {
+      message.warning(`系统内置角色不可删除：${protectedCodes.join(', ')}`);
+      return;
+    }
+
+    modal.confirm({
+      title: '删除确认',
+      content: `要删除当前选中的${selectedCodes.length}条记录吗？`,
+      okText: '确认',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await Promise.all(selectedCodes.map((code) => api(`/rbac/roles/${code}`, { method: 'DELETE' }, true)));
+          message.success('删除完成');
+          setSelectedRowKeys([]);
+          await fetchRoles();
+        } catch (error) {
+          message.error(parseError(error));
+        }
+      },
     });
-    setRoleModalOpen(true);
   };
 
-  const fetchAllUsers = async () => {
-    setUsersLoading(true);
-    try {
-      const data = await api<ListUsersResponse>('/users?page=1&pageSize=0', undefined, true);
-      setUsers(data.data);
-    } catch (error) {
-      message.error(parseError(error));
-    } finally {
-      setUsersLoading(false);
-    }
-  };
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card className="keep-card-head" title="权限配置">
+        <Space>
+          <Button type="primary" onClick={() => navigate('/settings/rbac/create')} disabled={!canUpdate}>
+            创建
+          </Button>
+          <Button danger onClick={() => void batchDelete()} disabled={!canUpdate || !selectedRowKeys.length}>
+            删除
+          </Button>
+        </Space>
+      </Card>
 
-  const openAssignUsers = async (role: RoleSummary) => {
-    setEditingRole(role);
-    setAssignUsersMode(true);
-    if (users.length === 0) {
-      await fetchAllUsers();
-    }
-    const selectedUserIds = users
-      .filter((item) => item.roles?.includes(role.code))
-      .map((item) => item.id);
-    roleForm.setFieldsValue({
-      code: role.code,
-      name: role.name,
-      description: role.description ?? '',
-      userIds: selectedUserIds,
-    });
-    setRoleModalOpen(true);
-  };
+      <Card>
+        <Table<RoleSummary>
+          rowKey="code"
+          loading={loading}
+          dataSource={roles}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+            getCheckboxProps: (record) => ({ disabled: record.isSystem || !canUpdate }),
+          }}
+          onRow={(record) => ({
+            onClick: () => navigate(`/settings/rbac/${record.code}`),
+          })}
+          columns={[
+            { title: '角色编码', dataIndex: 'code' },
+            { title: '角色名称', dataIndex: 'name' },
+            { title: '描述', dataIndex: 'description', render: (value?: string) => value || '-' },
+            { title: '用户数', dataIndex: 'userCount' },
+            { title: '系统内置', dataIndex: 'isSystem', render: (value: boolean) => (value ? '是' : '否') },
+          ]}
+          pagination={false}
+        />
+      </Card>
+    </Space>
+  );
+}
 
-  const submitRoleForm = async () => {
-    try {
-      setRoleModalLoading(true);
+function RbacRoleEditorPage({ canUpdate }: { canUpdate: boolean }) {
+  const { message } = AntdApp.useApp();
+  const navigate = useNavigate();
+  const { code } = useParams<{ code: string }>();
+  const isCreate = !code || code === 'create';
 
-      if (assignUsersMode && editingRole) {
-        const userIds = roleForm.getFieldValue('userIds') ?? [];
-        await api(`/rbac/roles/${editingRole.code}/users`, {
-          method: 'PUT',
-          body: JSON.stringify({ userIds }),
-        }, true);
-        message.success('角色用户已更新');
-        setRoleModalOpen(false);
-        await refreshAll();
-        return;
-      }
-
-      const values = await roleForm.validateFields();
-
-      if (editingRole) {
-        await api(`/rbac/roles/${editingRole.code}`, {
-          method: 'PUT',
-          body: JSON.stringify({ name: values.name, description: values.description }),
-        }, true);
-        message.success('角色已更新');
-      } else {
-        await api('/rbac/roles', {
-          method: 'POST',
-          body: JSON.stringify(values),
-        }, true);
-        message.success('角色已创建');
-      }
-
-      setRoleModalOpen(false);
-      await refreshAll();
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('validate')) return;
-      message.error(parseError(error));
-    } finally {
-      setRoleModalLoading(false);
-    }
-  };
-
-  const deleteRole = async (role: RoleSummary) => {
-    try {
-      await api(`/rbac/roles/${role.code}`, { method: 'DELETE' }, true);
-      message.success('角色已删除');
-      if (selectedRoleCode === role.code) {
-        setSelectedRoleCode('');
-      }
-      await refreshAll();
-    } catch (error) {
-      message.error(parseError(error));
-    }
-  };
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [role, setRole] = useState<RoleSummary | null>(null);
+  const [permissions, setPermissions] = useState<PermissionItem[]>([]);
+  const [modules, setModules] = useState<ModuleItem[]>([]);
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [form] = Form.useForm<RoleFormValues>();
 
   const groupedPermissions = useMemo(() => {
     const map = new Map<string, PermissionItem[]>();
@@ -1177,192 +1130,182 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
     return Array.from(map.entries());
   }, [permissions]);
 
-  const handleSavePermissions = async () => {
-    if (!selectedRoleCode) return;
-    setSavingPermissions(true);
+  const refreshData = async () => {
+    setLoading(true);
     try {
-      await api(`/rbac/roles/${selectedRoleCode}/permissions`, {
-        method: 'PUT',
-        body: JSON.stringify({ permissionCodes: selectedPermissions }),
-      }, true);
-      message.success('权限点已更新');
-      await refreshAll();
+      const [roleData, permissionData, moduleData, usersData] = await Promise.all([
+        api<ListRolesResponse>('/rbac/roles', undefined, true),
+        api<ListPermissionsResponse>('/rbac/permissions', undefined, true),
+        api<ModuleItem[]>('/modules', undefined, true).catch(() => [] as ModuleItem[]),
+        api<ListUsersResponse>('/users?page=1&pageSize=0', undefined, true),
+      ]);
+      setPermissions(permissionData);
+      setModules(moduleData);
+      setUsers(usersData.data);
+
+      if (isCreate) {
+        setRole(null);
+        form.setFieldsValue({ code: '', name: '', description: '' });
+        setSelectedPermissions([]);
+        setSelectedModules([]);
+        setSelectedUserIds([]);
+      } else {
+        const found = roleData.find((r) => r.code === code);
+        if (!found) {
+          message.error('角色不存在');
+          navigate('/settings/rbac');
+          return;
+        }
+        setRole(found);
+        form.setFieldsValue({ code: found.code, name: found.name, description: found.description ?? '' });
+        setSelectedPermissions(found.permissions ?? []);
+        setSelectedModules(found.modules ?? []);
+        setSelectedUserIds(usersData.data.filter((item) => item.roles?.includes(found.code)).map((item) => item.id));
+      }
     } catch (error) {
       message.error(parseError(error));
     } finally {
-      setSavingPermissions(false);
+      setLoading(false);
     }
   };
 
-  const handleSaveModules = async () => {
-    if (!selectedRoleCode) return;
-    setSavingModules(true);
+  useEffect(() => {
+    void refreshData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
+  const submit = async () => {
+    if (!canUpdate) return;
     try {
-      await api(`/rbac/roles/${selectedRoleCode}/modules`, {
+      const values = await form.validateFields();
+      const targetCode = (isCreate ? values.code : code) as string;
+      if (!targetCode) return;
+
+      setSaving(true);
+
+      if (isCreate) {
+        await api('/rbac/roles', {
+          method: 'POST',
+          body: JSON.stringify({ code: values.code, name: values.name, description: values.description }),
+        }, true);
+      } else {
+        await api(`/rbac/roles/${targetCode}`, {
+          method: 'PUT',
+          body: JSON.stringify({ name: values.name, description: values.description }),
+        }, true);
+      }
+
+      await api(`/rbac/roles/${targetCode}/permissions`, {
+        method: 'PUT',
+        body: JSON.stringify({ permissionCodes: selectedPermissions }),
+      }, true);
+
+      await api(`/rbac/roles/${targetCode}/modules`, {
         method: 'PUT',
         body: JSON.stringify({ moduleCodes: selectedModules }),
       }, true);
-      message.success('模块授权已更新');
-      await refreshAll();
+
+      await api(`/rbac/roles/${targetCode}/users`, {
+        method: 'PUT',
+        body: JSON.stringify({ userIds: selectedUserIds }),
+      }, true);
+
+      message.success(isCreate ? '角色已创建' : '角色已更新');
+      navigate(isCreate ? `/settings/rbac/${targetCode}` : '/settings/rbac');
     } catch (error) {
+      if (error instanceof Error && error.message.includes('validate')) return;
       message.error(parseError(error));
     } finally {
-      setSavingModules(false);
+      setSaving(false);
     }
   };
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
       <Card
-        title="角色管理"
+        className="keep-card-head"
+        title={isCreate ? '创建角色' : `编辑角色：${role?.name ?? code}`}
         loading={loading}
         extra={
-          <Button type="primary" onClick={openCreateRole} disabled={!canUpdate}>
-            新建角色
-          </Button>
+          <Space>
+            <Button onClick={() => navigate('/settings/rbac')}>返回</Button>
+            <Button type="primary" loading={saving} disabled={!canUpdate} onClick={() => void submit()}>
+              保存
+            </Button>
+          </Space>
         }
       >
-        <Table<RoleSummary>
-          rowKey="code"
-          dataSource={roles}
-          pagination={false}
-          columns={[
-            { title: '角色编码', dataIndex: 'code' },
-            { title: '角色名称', dataIndex: 'name' },
-            { title: '描述', dataIndex: 'description', render: (value?: string) => value || '-' },
-            { title: '用户数', dataIndex: 'userCount' },
-            { title: '系统内置', dataIndex: 'isSystem', render: (value: boolean) => (value ? '是' : '否') },
-            {
-              title: '操作',
-              render: (_, role) => (
-                <Space>
-                  <Button size="small" onClick={() => setSelectedRoleCode(role.code)}>
-                    选择
-                  </Button>
-                  <Button size="small" onClick={() => openEditRole(role)} disabled={!canUpdate || role.isSystem}>
-                    编辑
-                  </Button>
-                  <Button size="small" onClick={() => void openAssignUsers(role)} disabled={!canUpdate}>
-                    分配用户
-                  </Button>
-                  <Popconfirm
-                    title="确认删除该角色？"
-                    okText="删除"
-                    cancelText="取消"
-                    disabled={!canUpdate || role.isSystem}
-                    onConfirm={() => void deleteRole(role)}
-                  >
-                    <Button size="small" danger disabled={!canUpdate || role.isSystem}>
-                      删除
-                    </Button>
-                  </Popconfirm>
-                </Space>
-              ),
-            },
-          ]}
-        />
+        <Form form={form} layout="vertical">
+          <div className="grid-form" style={{ gridTemplateColumns: 'repeat(3, minmax(180px, 1fr))' }}>
+            <Form.Item
+              label="角色编码"
+              name="code"
+              rules={[
+                { required: true, message: '请输入角色编码' },
+                { pattern: /^[A-Z][A-Z0-9_]{1,30}$/, message: '仅支持大写字母/数字/下划线，且以字母开头' },
+              ]}
+            >
+              <Input placeholder="例如：SALES_MANAGER" disabled={!isCreate} />
+            </Form.Item>
+            <Form.Item label="角色名称" name="name" rules={[{ required: true, message: '请输入角色名称' }]}>
+              <Input placeholder="例如：销售经理" />
+            </Form.Item>
+            <Form.Item label="描述" name="description">
+              <Input placeholder="可选" />
+            </Form.Item>
+          </div>
+        </Form>
       </Card>
 
-      <Card
-        title="权限点"
-        extra={
-          <Button type="primary" onClick={() => void handleSavePermissions()} disabled={!canUpdate || !selectedRoleCode} loading={savingPermissions}>
-            保存权限点
-          </Button>
-        }
-      >
-        {!selectedRoleCode ? (
-          <Typography.Text type="secondary">请先选择角色</Typography.Text>
-        ) : (
-          <Space direction="vertical" style={{ width: '100%' }} size={12}>
-            {groupedPermissions.map(([moduleCode, perms]) => (
+      <Card className="keep-card-head" title="权限点">
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          {groupedPermissions.map(([moduleCode, perms]) => {
+            const moduleCodes = perms.map((p) => p.code);
+            return (
               <Card key={moduleCode} size="small" title={`模块：${moduleCode}`}>
                 <Checkbox.Group
-                  value={selectedPermissions}
-                  onChange={(values) => setSelectedPermissions(values as string[])}
+                  value={selectedPermissions.filter((code) => moduleCodes.includes(code))}
+                  onChange={(values) => {
+                    const moduleSet = new Set(moduleCodes);
+                    const next = new Set(selectedPermissions.filter((code) => !moduleSet.has(code)));
+                    (values as string[]).forEach((v) => next.add(v));
+                    setSelectedPermissions(Array.from(next));
+                  }}
                   options={perms.map((perm) => ({
                     label: `${perm.name} (${perm.code})`,
                     value: perm.code,
                   }))}
                 />
               </Card>
-            ))}
-          </Space>
-        )}
+            );
+          })}
+        </Space>
       </Card>
 
-      <Card
-        title="模块授权"
-        extra={
-          <Button type="primary" onClick={() => void handleSaveModules()} disabled={!canUpdate || !selectedRoleCode} loading={savingModules}>
-            保存模块授权
-          </Button>
-        }
-      >
-        {!selectedRoleCode ? (
-          <Typography.Text type="secondary">请先选择角色</Typography.Text>
-        ) : (
-          <Checkbox.Group
-            value={selectedModules}
-            onChange={(values) => setSelectedModules(values as string[])}
-            options={modules.map((module) => ({
-              label: `${module.name} (${module.code})`,
-              value: module.code,
-            }))}
-          />
-        )}
+      <Card className="keep-card-head" title="模块授权">
+        <Checkbox.Group
+          value={selectedModules}
+          onChange={(values) => setSelectedModules(values as string[])}
+          options={modules.map((module) => ({
+            label: `${module.name} (${module.code})`,
+            value: module.code,
+          }))}
+        />
       </Card>
 
-      <Modal
-        title={assignUsersMode ? '分配用户' : editingRole ? '编辑角色' : '新建角色'}
-        open={roleModalOpen}
-        onCancel={() => setRoleModalOpen(false)}
-        onOk={() => void submitRoleForm()}
-        okText={assignUsersMode ? '保存' : editingRole ? '保存' : '创建'}
-        confirmLoading={roleModalLoading}
-        okButtonProps={{ disabled: !canUpdate }}
-        cancelText="取消"
-      >
-        <Form form={roleForm} layout="vertical">
-          {assignUsersMode ? (
-            <Form.Item label="分配用户" name="userIds">
-              <Select
-                mode="multiple"
-                placeholder="选择用户"
-                loading={usersLoading}
-                optionFilterProp="label"
-                options={users.map((user) => ({
-                  value: user.id,
-                  label: user.name ? user.name + ' (' + user.username + ')' : user.username,
-                }))}
-              />
-            </Form.Item>
-          ) : (
-            <>
-              <Form.Item
-                label="角色编码"
-                name="code"
-                rules={[
-                  { required: true, message: '请输入角色编码' },
-                  { pattern: /^[A-Z][A-Z0-9_]{1,30}$/, message: '仅支持大写字母/数字/下划线，且以字母开头' },
-                ]}
-              >
-                <Input placeholder="例如：SALES_MANAGER" disabled={!!editingRole} />
-              </Form.Item>
-              <Form.Item
-                label="角色名称"
-                name="name"
-                rules={[{ required: true, message: '请输入角色名称' }]}
-              >
-                <Input placeholder="例如：销售经理" />
-              </Form.Item>
-              <Form.Item label="描述" name="description">
-                <Input.TextArea rows={3} placeholder="可选" />
-              </Form.Item>
-            </>
-          )}
-        </Form>
-      </Modal>
+      <Card className="keep-card-head" title="分配用户">
+        <Select
+          mode="multiple"
+          value={selectedUserIds}
+          onChange={(values) => setSelectedUserIds(values)}
+          optionFilterProp="label"
+          style={{ width: '100%' }}
+          options={users.map((user) => ({
+            value: user.id,
+            label: user.name ? `${user.name} (${user.username})` : user.username,
+          }))}
+        />
+      </Card>
     </Space>
   );
 }
@@ -3067,7 +3010,11 @@ function AppShell({
               ) : null}
 
               {canRbacRead ? (
-                <Route path="/settings/rbac" element={<RbacSettingsPage canUpdate={canRbacUpdate} />} />
+                <>
+                  <Route path="/settings/rbac" element={<RbacRoleListPage canUpdate={canRbacUpdate} />} />
+                  <Route path="/settings/rbac/create" element={<RbacRoleEditorPage canUpdate={canRbacUpdate} />} />
+                  <Route path="/settings/rbac/:code" element={<RbacRoleEditorPage canUpdate={canRbacUpdate} />} />
+                </>
               ) : null}
 
               {canAuditRead ? <Route path="/audit-logs" element={<AuditLogsPage />} /> : null}
