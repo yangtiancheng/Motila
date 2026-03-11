@@ -43,6 +43,7 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
       placeholder: '也可粘贴 data:image/...;base64,...',
       accept: 'image/png,image/jpeg,image/webp',
       previewFallbackName: 'avatarUrl',
+      colSpan: 2,
     },
     {
       name: 'avatarUrl',
@@ -50,6 +51,7 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
       type: 'input',
       required: false,
       placeholder: 'https://example.com/avatar.png',
+      colSpan: 2,
     },
     {
       name: 'password',

@@ -359,6 +359,7 @@ function UserFormCard({
       <SchemaForm
         form={form}
         fields={getUserFormSchema(title.includes('编辑'))}
+        columns={4}
         loading={loading}
         submitText={submitText}
         onFinish={async (values: {
@@ -654,6 +655,7 @@ function UserEditPage() {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(false);
   const [initial, setInitial] = useState<Partial<{
+    username: string;
     email: string;
     name: string;
     avatarImage?: string;
@@ -666,6 +668,7 @@ function UserEditPage() {
     api<UserItem>(`/users/${id}`, undefined, true)
       .then((res) =>
         setInitial({
+          username: res.username,
           email: res.email,
           name: res.name,
           avatarImage: res.avatarImage,

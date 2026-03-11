@@ -9,12 +9,14 @@ export function SchemaForm<TValues extends Record<string, unknown>>({
   loading,
   submitText,
   onFinish,
+  columns = 2,
 }: {
   form: FormInstance<TValues>;
   fields: SchemaField<TValues>[];
   loading: boolean;
   submitText: string;
   onFinish: (values: TValues) => Promise<void>;
+  columns?: number;
 }) {
   const values = (useWatch([], form) as Partial<TValues>) ?? {};
 
@@ -29,7 +31,7 @@ export function SchemaForm<TValues extends Record<string, unknown>>({
 
   return (
     <Form form={form} layout="vertical" onFinish={onFinish}>
-      <div className="grid-form">
+      <div className="grid-form" style={{ gridTemplateColumns: `repeat(${columns}, minmax(180px, 1fr))` }}>
         {fields.map((field) => {
           if (field.visibleWhen && !field.visibleWhen(values)) {
             return null;
@@ -52,7 +54,11 @@ export function SchemaForm<TValues extends Record<string, unknown>>({
           const disabled = field.disabledWhen?.(values) ?? false;
 
           return (
-            <Form.Item key={String(field.name)} label={field.label}>
+            <Form.Item
+              key={String(field.name)}
+              label={field.label}
+              style={field.colSpan ? { gridColumn: `span ${field.colSpan}` } : undefined}
+            >
               {field.type === 'input' ? (
                 <Form.Item name={String(field.name)} rules={rules} noStyle>
                   <Input placeholder={field.placeholder} disabled={disabled} />

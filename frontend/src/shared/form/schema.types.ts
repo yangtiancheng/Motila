@@ -16,6 +16,7 @@ export type SchemaField<TValues extends Record<string, unknown>> = {
   options?: SchemaOption[];
   accept?: string;
   previewFallbackName?: keyof TValues;
+  colSpan?: number;
   visibleWhen?: (values: Partial<TValues>) => boolean;
   disabledWhen?: (values: Partial<TValues>) => boolean;
 };
