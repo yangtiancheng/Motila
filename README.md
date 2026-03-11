@@ -19,6 +19,7 @@
 - 登录 / 注册 / JWT 鉴权
 - `/auth/me` 获取当前用户信息
 - 修改本人密码
+- 忘记密码（邮箱找回）：`POST /auth/forgot-password`，按用户名触发并邮件发送临时密码
 
 ### 2.2 用户管理
 - 用户列表、新建、编辑、删除
@@ -101,6 +102,9 @@ Motila/
 - Node.js 20+（建议 22 LTS）
 - npm 10+
 - PM2（可选）
+- 后端环境变量建议：
+  - `JWT_SECRET`：JWT 签名密钥
+  - `EMAIL_CONFIG_SECRET`：邮箱授权码加解密密钥（未设置时回退到 `JWT_SECRET`）
 
 安装 PM2（可选）：
 

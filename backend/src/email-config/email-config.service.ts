@@ -157,6 +157,15 @@ export class EmailConfigService {
     }
   }
 
+  async getConfigWithSecret(userId: string) {
+    const row = await this.prisma.userEmailConfig.findUnique({ where: { userId } });
+    if (!row || !row.enabled) return null;
+    return {
+      ...row,
+      secret: this.decryptSecret(row.secretEncrypted),
+    };
+  }
+
   private secretKey() {
     const raw = process.env.EMAIL_CONFIG_SECRET ?? process.env.JWT_SECRET ?? 'motila-dev-secret-change-me';
     return crypto.createHash('sha256').update(raw).digest();

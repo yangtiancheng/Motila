@@ -6,10 +6,13 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
 import { RbacService } from '../rbac/rbac.service';
+import { EmailConfigService } from '../email-config/email-config.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -17,6 +20,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly rbacService: RbacService,
+    private readonly emailConfigService: EmailConfigService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -99,6 +103,58 @@ export class AuthService {
         role: true,
       },
     });
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { username: dto.username },
+      select: { id: true, email: true, name: true, username: true },
+    });
+
+    if (!user) return { ok: true, message: '如果账号存在，重置邮件已发送' };
+    if (dto.email && dto.email.toLowerCase() !== user.email.toLowerCase()) {
+      return { ok: true, message: '如果账号存在，重置邮件已发送' };
+    }
+
+    const config = await this.emailConfigService.getConfigWithSecret(user.id);
+    if (!config?.secret) {
+      return { ok: false, message: '未配置可用邮箱，请联系管理员重置密码' };
+    }
+
+    const tempPassword = this.generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    const transporter = nodemailer.createTransport({
+      host: config.smtpHost,
+      port: config.smtpPort,
+      secure: config.smtpSecure,
+      auth: {
+        user: config.emailAddress,
+        pass: config.secret,
+      },
+    });
+
+    await transporter.sendMail({
+      from: config.emailAddress,
+      to: user.email,
+      subject: '[Motila] 密码重置通知',
+      text: `你好${user.name ? `，${user.name}` : ''}，\n\n你的 Motila 临时密码为：${tempPassword}\n请登录后立即在个人信息中修改密码。\n\n（系统自动发送，请勿回复）`,
+    });
+
+    return { ok: true, message: '如果账号存在，重置邮件已发送' };
+  }
+
+  private generateTempPassword(length = 10) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    let result = '';
+    for (let i = 0; i < length; i += 1) {
+      result += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return result;
   }
 
   private async signToken(

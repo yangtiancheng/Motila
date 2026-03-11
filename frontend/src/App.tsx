@@ -1496,8 +1496,13 @@ function ProfilePage({ user }: { user: AuthUser }) {
         emailAddress: values.emailAddress.trim(),
         secret: values.secret?.trim() ? values.secret.trim() : undefined,
         smtpHost: values.smtpHost.trim(),
+        smtpPort: Number(values.smtpPort),
         imapHost: values.imapHost.trim(),
+        imapPort: Number(values.imapPort),
         popHost: values.popHost?.trim() ? values.popHost.trim() : undefined,
+        popPort: values.popPort === undefined || values.popPort === null
+          ? undefined
+          : Number(values.popPort),
       };
 
       setSaving(true);
@@ -1523,8 +1528,13 @@ function ProfilePage({ user }: { user: AuthUser }) {
         emailAddress: values.emailAddress.trim(),
         secret: values.secret?.trim() ? values.secret.trim() : undefined,
         smtpHost: values.smtpHost.trim(),
+        smtpPort: Number(values.smtpPort),
         imapHost: values.imapHost.trim(),
+        imapPort: Number(values.imapPort),
         popHost: values.popHost?.trim() ? values.popHost.trim() : undefined,
+        popPort: values.popPort === undefined || values.popPort === null
+          ? undefined
+          : Number(values.popPort),
       };
 
       if (!payload.secret) {
@@ -2658,8 +2668,11 @@ function App() {
       : false,
   );
   const [authLoading, setAuthLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
 
   const [authForm] = Form.useForm<{ username: string; email?: string; name?: string; password: string }>();
+  const [forgotForm] = Form.useForm<{ username: string; email?: string }>();
 
   const [token, setToken] = useState<string>(() => localStorage.getItem('motila_token') ?? '');
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -2779,6 +2792,31 @@ function App() {
     }
   };
 
+  const onSubmitForgotPassword = async () => {
+    try {
+      const values = await forgotForm.validateFields();
+      setForgotSubmitting(true);
+      const res = await api<{ ok: boolean; message: string }>('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: values.username.trim(),
+          email: values.email?.trim() ? values.email.trim() : undefined,
+        }),
+      });
+      if (res.ok) {
+        message.success(res.message);
+        setForgotOpen(false);
+        forgotForm.resetFields();
+      } else {
+        message.warning(res.message);
+      }
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setForgotSubmitting(false);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('motila_token');
     localStorage.removeItem('motila_user');
@@ -2849,7 +2887,10 @@ function App() {
                           </Typography.Link>
                           <Typography.Link
                             className="auth-mode-link"
-                            onClick={() => message.info('功能暂未开放')}
+                            onClick={() => {
+                              setForgotOpen(true);
+                              forgotForm.setFieldsValue({ username: authForm.getFieldValue('username') });
+                            }}
                           >
                             忘记密码
                           </Typography.Link>
@@ -2866,6 +2907,27 @@ function App() {
             </Card>
           </div>
         </div>
+
+        <Modal
+          title="邮箱找回密码"
+          open={forgotOpen}
+          onCancel={() => setForgotOpen(false)}
+          onOk={() => void onSubmitForgotPassword()}
+          okText="发送重置邮件"
+          cancelText="取消"
+          confirmLoading={forgotSubmitting}
+          destroyOnClose
+        >
+          <Form form={forgotForm} layout="vertical">
+            <Form.Item label="用户名" name="username" rules={[{ required: true, message: '请输入用户名' }]}>
+              <Input placeholder="请输入用户名" />
+            </Form.Item>
+            <Form.Item label="邮箱（可选，用于二次校验）" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }]}>
+              <Input placeholder="you@example.com" />
+            </Form.Item>
+            <Typography.Text type="secondary">系统会发送临时密码到该用户已绑定邮箱。</Typography.Text>
+          </Form>
+        </Modal>
       </ConfigProvider>
     );
   }
