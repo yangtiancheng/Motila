@@ -61,6 +61,12 @@ const menuConfigRaw: MenuItemConfig[] = [
     sortOrder: 35,
   },
   {
+    key: 'settings',
+    label: '配置',
+    icon: <SettingOutlined />,
+    sortOrder: 40,
+  },
+  {
     key: 'users',
     label: '用户管理',
     path: '/users',
