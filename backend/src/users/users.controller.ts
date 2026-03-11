@@ -15,6 +15,7 @@ import type { JwtUser } from '../common/jwt-user.type';
 import { ModuleEnabledGuard } from '../modules/module-enabled.guard';
 import { RequireModule, RequirePermission } from '../rbac/rbac.decorator';
 import { RbacGuard } from '../rbac/rbac.guard';
+import { BatchDeleteUsersDto } from './dto/batch-delete-users.dto';
 import { ChangeMyPasswordDto } from './dto/change-my-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
@@ -75,6 +76,12 @@ export class UsersController {
     @CurrentUser() user: JwtUser | undefined,
   ) {
     return this.usersService.update(id, dto, user);
+  }
+
+  @Delete('batch-delete')
+  @RequirePermission('users.delete')
+  batchDelete(@Body() dto: BatchDeleteUsersDto, @CurrentUser() user: JwtUser | undefined) {
+    return this.usersService.batchDelete(dto.ids, user);
   }
 
   @Delete(':id')

@@ -13,6 +13,23 @@ export type UserFormValues = {
 export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[] {
   const fields: SchemaField<UserFormValues>[] = [
     {
+      name: 'avatarImage',
+      label: '头像',
+      type: 'upload',
+      required: false,
+      accept: 'image/png,image/jpeg,image/webp',
+      previewFallbackName: 'avatarUrl',
+      colSpan: 2,
+    },
+    {
+      name: 'avatarUrl',
+      label: '头像地址',
+      type: 'input',
+      required: false,
+      placeholder: 'https://example.com/avatar.png',
+      colSpan: 2,
+    },
+    {
       name: 'username',
       label: '用户名',
       type: 'input',
@@ -27,24 +44,6 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
       required: true,
       min: 2,
       message: '昵称至少2位',
-    },
-    {
-      name: 'avatarImage',
-      label: '头像上传',
-      type: 'upload',
-      required: false,
-      placeholder: '也可粘贴 data:image/...;base64,...',
-      accept: 'image/png,image/jpeg,image/webp',
-      previewFallbackName: 'avatarUrl',
-      colSpan: 2,
-    },
-    {
-      name: 'avatarUrl',
-      label: '头像地址',
-      type: 'input',
-      required: false,
-      placeholder: 'https://example.com/avatar.png',
-      colSpan: 2,
     },
     {
       name: 'password',
@@ -69,7 +68,7 @@ export function getUserFormSchema(isEdit: boolean): SchemaField<UserFormValues>[
   ];
 
   if (!isEdit) {
-    fields.splice(1, 0, {
+    fields.splice(4, 0, {
       name: 'email',
       label: '邮箱',
       type: 'input',

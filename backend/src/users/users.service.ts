@@ -370,6 +370,19 @@ export class UsersService {
     return { success: true };
   }
 
+  async batchDelete(ids: string[], actor?: JwtUser) {
+    let count = 0;
+    for (const id of ids) {
+      try {
+        await this.remove(id, actor);
+        count += 1;
+      } catch {
+        // ignore single failure to keep batch progressing
+      }
+    }
+    return { count };
+  }
+
   async remove(id: string, actor?: JwtUser) {
     const target = await this.prisma.user.findUnique({
       where: { id },

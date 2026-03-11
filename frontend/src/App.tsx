@@ -384,16 +384,12 @@ function UsersListPage({
   canCreate,
   canUpdate,
   canDelete,
-  canAssignRoles,
-  canReadRoles,
 }: {
   currentUser: AuthUser;
   onChanged: () => void;
   canCreate: boolean;
   canUpdate: boolean;
   canDelete: boolean;
-  canAssignRoles: boolean;
-  canReadRoles: boolean;
 }) {
   const { message } = AntdApp.useApp();
   const navigate = useNavigate();
@@ -404,13 +400,7 @@ function UsersListPage({
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
   const [rows, setRows] = useState<UserItem[]>([]);
-
-  const [roleOptions, setRoleOptions] = useState<RoleSummary[]>([]);
-  const [roleLoading, setRoleLoading] = useState(false);
-  const [assignOpen, setAssignOpen] = useState(false);
-  const [assigning, setAssigning] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   async function fetchRows() {
     setLoading(true);
@@ -433,44 +423,23 @@ function UsersListPage({
     }
   }
 
-  const fetchRoles = async () => {
-    if (!canReadRoles) return;
-    setRoleLoading(true);
-    try {
-      const data = await api<ListRolesResponse>('/rbac/roles', undefined, true);
-      setRoleOptions(data);
-    } catch (error) {
-      message.error(parseError(error));
-    } finally {
-      setRoleLoading(false);
+  const batchDelete = async () => {
+    if (!selectedRowKeys.length) return;
+    if (selectedRowKeys.includes(currentUser.id)) {
+      message.warning('不能批量删除当前登录用户');
+      return;
     }
-  };
-
-  const openAssignRoles = async (record: UserItem) => {
-    if (!canAssignRoles) return;
-    setSelectedUser(record);
-    setSelectedRoles(record.roles ?? []);
-    setAssignOpen(true);
-    await fetchRoles();
-  };
-
-  const submitAssignRoles = async () => {
-    if (!selectedUser) return;
-    setAssigning(true);
     try {
-      await api(`/rbac/users/${selectedUser.id}/roles`, {
-        method: 'PUT',
-        body: JSON.stringify({ roleCodes: selectedRoles }),
+      await api('/users/batch-delete', {
+        method: 'DELETE',
+        body: JSON.stringify({ ids: selectedRowKeys }),
       }, true);
-      message.success('角色分配已更新');
-      setAssignOpen(false);
-      setSelectedUser(null);
+      message.success('批量删除成功');
+      setSelectedRowKeys([]);
       void fetchRows();
       onChanged();
     } catch (error) {
       message.error(parseError(error));
-    } finally {
-      setAssigning(false);
     }
   };
 
@@ -514,47 +483,6 @@ function UsersListPage({
       key: 'createdAt',
       render: (value: string) => new Date(value).toLocaleString(),
     },
-    {
-      title: '操作',
-      key: 'actions',
-      render: (_: unknown, record: UserItem) => {
-        const disableSelf = currentUser.id === record.id;
-
-        return (
-          <Space>
-            <Button size="small" onClick={() => navigate(`/users/${record.id}`)}>
-              详情
-            </Button>
-            <Button size="small" onClick={() => navigate(`/users/${record.id}/edit`)} disabled={!canUpdate}>
-              编辑
-            </Button>
-            <Button size="small" onClick={() => void openAssignRoles(record)} disabled={!canAssignRoles}>
-              分配角色
-            </Button>
-            <Popconfirm
-              title="确认删除该用户？"
-              okText="删除"
-              cancelText="取消"
-              disabled={disableSelf || !canDelete}
-              onConfirm={async () => {
-                try {
-                  await api(`/users/${record.id}`, { method: 'DELETE' }, true);
-                  message.success('删除成功');
-                  fetchRows();
-                  onChanged();
-                } catch (error) {
-                  message.error(parseError(error));
-                }
-              }}
-            >
-              <Button size="small" danger disabled={disableSelf || !canDelete}>
-                删除
-              </Button>
-            </Popconfirm>
-          </Space>
-        );
-      },
-    },
   ];
 
   return (
@@ -578,11 +506,26 @@ function UsersListPage({
       </Card>
 
       <Card title="用户列表">
+        <Space style={{ marginBottom: 12 }}>
+          <Button danger disabled={!selectedRowKeys.length || !canDelete} onClick={() => void batchDelete()}>批量删除</Button>
+          <Button disabled>批量复制（暂未实现）</Button>
+          <Button disabled>批量失效（暂未实现）</Button>
+        </Space>
         <Table<UserItem>
           rowKey="id"
           loading={loading}
           columns={columns}
           dataSource={rows}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+          }}
+          onRow={(record) => ({
+            onClick: () => {
+              if (!canUpdate) return;
+              navigate(`/users/${record.id}/edit`);
+            },
+          })}
           pagination={{
             current: page,
             pageSize,
@@ -596,28 +539,6 @@ function UsersListPage({
           size="middle"
         />
       </Card>
-
-      <Modal
-        title={`分配角色${selectedUser ? `：${selectedUser.name ?? selectedUser.email}` : ''}`}
-        open={assignOpen}
-        onCancel={() => setAssignOpen(false)}
-        onOk={() => void submitAssignRoles()}
-        confirmLoading={assigning}
-        okButtonProps={{ disabled: !canAssignRoles }}
-      >
-        <Space direction="vertical" style={{ width: '100%' }} size={12}>
-          <Typography.Text type="secondary">请选择要授予的角色</Typography.Text>
-          <Checkbox.Group
-            options={roleOptions.map((role) => ({
-              label: `${role.name} (${role.code})`,
-              value: role.code,
-            }))}
-            value={selectedRoles}
-            onChange={(values) => setSelectedRoles(values as string[])}
-          />
-          {roleLoading ? <Typography.Text>加载角色中...</Typography.Text> : null}
-        </Space>
-      </Modal>
     </Space>
   );
 }
@@ -2373,7 +2294,6 @@ function AppShell({
   const canAuditRead = can('audit.read');
   const canRbacRead = can('rbac.read');
   const canRbacUpdate = can('rbac.update');
-  const canAssignRoles = canRbacUpdate;
 
   useEffect(() => {
     const isRouteForbidden =
@@ -2672,8 +2592,6 @@ function AppShell({
                         canCreate={can('users.create')}
                         canUpdate={can('users.update')}
                         canDelete={can('users.delete')}
-                        canAssignRoles={canAssignRoles}
-                        canReadRoles={canRbacRead}
                       />
                     }
                   />
