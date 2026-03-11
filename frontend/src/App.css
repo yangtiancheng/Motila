@@ -480,3 +480,14 @@ body {
   margin-inline-start: 0;
   width: 100%;
 }
+
+/* 列表页容器贴合主内容区：去掉 Space 默认留白 */
+.app-content > .ant-space.ant-space-vertical {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.app-content > .ant-space.ant-space-vertical > .ant-space-item {
+  margin: 0 !important;
+}
