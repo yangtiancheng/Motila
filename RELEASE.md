@@ -115,3 +115,5 @@
 - 新增批量删除接口：`DELETE /projects/batch-delete`、`DELETE /hr/employees/batch-delete`
 - 用户管理列表移除操作列，支持点击行进入编辑与多选批量删除
 - 用户编辑页头像字段上移至最上方，便于优先维护头像
+- 新增发件中心（`/emails/send`）：支持填写收件人/主题/正文并发送邮件
+- 新增发送日志接口与页面：`GET /emails/send-logs`，记录发送状态与错误信息

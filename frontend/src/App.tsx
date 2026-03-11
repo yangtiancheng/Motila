@@ -183,6 +183,24 @@ type ListEmployeesResponse = {
   pageSize: number;
 };
 
+type EmailSendLogItem = {
+  id: string;
+  to: string;
+  subject: string;
+  content: string;
+  status: string;
+  error?: string;
+  sentAt: string;
+  createdAt: string;
+};
+
+type ListEmailSendLogsResponse = {
+  data: EmailSendLogItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 type ListRolesResponse = RoleSummary[];
 
 type ListPermissionsResponse = PermissionItem[];
@@ -1321,6 +1339,104 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
   );
 }
 
+function EmailSendCenterPage() {
+  const { message } = AntdApp.useApp();
+  const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<EmailSendLogItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [form] = Form.useForm<{ to: string; subject: string; content: string }>();
+
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const query = buildListQuery({ page, pageSize }, {});
+      const res = await api<ListEmailSendLogsResponse>(`/emails/send-logs?${query}`, undefined, true);
+      setRows(res.data);
+      setTotal(res.total);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
+
+  const submitSend = async () => {
+    try {
+      const values = await form.validateFields();
+      setSending(true);
+      await api('/emails/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          to: values.to.trim(),
+          subject: values.subject.trim(),
+          content: values.content.trim(),
+        }),
+      }, true);
+      message.success('邮件发送成功');
+      form.resetFields();
+      void fetchLogs();
+    } catch (error) {
+      if (error instanceof Error) message.error(parseError(error));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card title="发件中心">
+        <Form form={form} layout="vertical">
+          <div className="grid-form" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
+            <Form.Item label="收件人" name="to" rules={[{ required: true, message: '请输入收件人邮箱' }]} style={{ gridColumn: 'span 2' }}>
+              <Input placeholder="多个收件人用英文逗号分隔" />
+            </Form.Item>
+            <Form.Item label="主题" name="subject" rules={[{ required: true, message: '请输入主题' }]} style={{ gridColumn: 'span 2' }}>
+              <Input />
+            </Form.Item>
+            <Form.Item label="正文" name="content" rules={[{ required: true, message: '请输入正文' }]} style={{ gridColumn: 'span 4' }}>
+              <Input.TextArea rows={8} />
+            </Form.Item>
+          </div>
+          <Button type="primary" loading={sending} onClick={() => void submitSend()}>发送邮件</Button>
+        </Form>
+      </Card>
+
+      <Card title="发送记录">
+        <Table<EmailSendLogItem>
+          rowKey="id"
+          loading={loading}
+          dataSource={rows}
+          columns={[
+            { title: '收件人', dataIndex: 'to' },
+            { title: '主题', dataIndex: 'subject' },
+            { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={v === 'SUCCESS' ? 'green' : 'red'}>{v}</Tag> },
+            { title: '时间', dataIndex: 'createdAt', render: (v: string) => new Date(v).toLocaleString() },
+            { title: '错误信息', dataIndex: 'error', render: (v?: string) => v || '-' },
+          ]}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            onChange: (next, size) => {
+              setPage(next);
+              setPageSize(size);
+            },
+          }}
+        />
+      </Card>
+    </Space>
+  );
+}
+
 function ProfilePage({ user }: { user: AuthUser }) {
   const { message } = AntdApp.useApp();
   const [form] = Form.useForm<{
@@ -2281,6 +2397,7 @@ function AppShell({
   }));
 
   const canUsersRead = can('users.read');
+  const canDashboardRead = can('dashboard.read');
   const canProjectRead = can('project.read');
   const canProjectCreate = can('project.create');
   const canProjectUpdate = can('project.update');
@@ -2300,6 +2417,7 @@ function AppShell({
       (location.pathname.startsWith('/users') && !canUsersRead) ||
       (location.pathname.startsWith('/audit-logs') && !canAuditRead) ||
       (location.pathname.startsWith('/projects') && !canProjectRead) ||
+      (location.pathname.startsWith('/emails') && !canDashboardRead) ||
       (location.pathname.startsWith('/hr') && !canHrRead) ||
       (location.pathname.startsWith('/settings/system') && !canSettingsRead) ||
       (location.pathname.startsWith('/settings/modules') && !canModuleRead) ||
@@ -2317,6 +2435,7 @@ function AppShell({
     }
   }, [
     canAuditRead,
+    canDashboardRead,
     canHrRead,
     canModuleRead,
     canProjectRead,
@@ -2607,6 +2726,8 @@ function AppShell({
                   element={<ProjectPage canCreate={canProjectCreate} canUpdate={canProjectUpdate} />}
                 />
               ) : null}
+
+              {canDashboardRead ? <Route path="/emails/send" element={<EmailSendCenterPage />} /> : null}
 
               {canHrRead ? (
                 <Route
