@@ -28,7 +28,13 @@
   - 支持上传并预览
   - 展示优先级：`avatarImage` > `avatarUrl`
 
-### 2.3 系统配置（配置 -> 系统配置）
+### 2.4 邮箱配置（个人信息页）
+- 支持 QQ / 163 邮箱配置（SMTP/IMAP）
+- 可维护：邮箱账号、授权码、进出端口、SSL
+- 支持“测试配置”按钮（验证 SMTP 连接与认证并发送测试邮件）
+- 授权码后端加密存储，接口返回脱敏显示
+
+### 2.5 系统配置（配置 -> 系统配置）
 - 配置字段：`name`、`title`、`logoUrl`、`logoImage`、`footerText`、`isActive`
 - 生效约束：同一时间仅一条 `isActive=true`
 - 站点联动：
@@ -50,7 +56,7 @@
 - 新增权限点：`settings.read`、`settings.update`
 - 模块开关（启用/禁用）影响菜单与路由可见性
 
-### 2.5 界面与导航
+### 2.6 界面与导航
 - 主题皮肤：business / tech / dark / auto
 - 顶部用户信息改为 **头像 + 昵称 + 角色**（非按钮风格，下拉菜单保留）
 - 移动端导航优化：
@@ -63,7 +69,7 @@
   - `sortOrder`（排序）
   - 配置驱动构建树，无需改菜单渲染逻辑
 
-### 2.6 域名访问与 Vite Host 校验
+### 2.7 域名访问与 Vite Host 校验
 - 已在前端 `vite.config.ts` 配置：
   - `server.allowedHosts: ['yangtiancheng.cn', 'www.yangtiancheng.cn']`
 - 本地开发已增加 Vite 代理：

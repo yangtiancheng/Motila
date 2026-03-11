@@ -99,6 +99,48 @@ type SystemConfigItem = {
   updatedAt: string;
 };
 
+type EmailProvider = 'QQ' | 'NETEASE_163' | 'CUSTOM';
+
+type MyEmailConfig = {
+  id: string;
+  provider: EmailProvider;
+  emailAddress: string;
+  authType: 'authorization_code' | 'password';
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  imapHost: string;
+  imapPort: number;
+  imapSecure: boolean;
+  popHost?: string | null;
+  popPort?: number | null;
+  popSecure?: boolean | null;
+  enabled: boolean;
+  secretMasked?: string;
+  lastTestAt?: string | null;
+  lastTestStatus?: string | null;
+  lastTestMessage?: string | null;
+};
+
+type ProviderDefaultsResponse = {
+  QQ: {
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    imapHost: string;
+    imapPort: number;
+    imapSecure: boolean;
+  };
+  NETEASE_163: {
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    imapHost: string;
+    imapPort: number;
+    imapSecure: boolean;
+  };
+};
+
 type ProjectStatus = 'PLANNING' | 'ACTIVE' | 'ON_HOLD' | 'DONE' | 'ARCHIVED';
 
 type ProjectItem = {
@@ -1356,17 +1398,247 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
 }
 
 function ProfilePage({ user }: { user: AuthUser }) {
+  const { message } = AntdApp.useApp();
+  const [form] = Form.useForm<{
+    provider: EmailProvider;
+    emailAddress: string;
+    authType: 'authorization_code' | 'password';
+    secret?: string;
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecure: boolean;
+    imapHost: string;
+    imapPort: number;
+    imapSecure: boolean;
+    popHost?: string;
+    popPort?: number;
+    popSecure?: boolean;
+    enabled: boolean;
+  }>();
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [providerDefaults, setProviderDefaults] = useState<ProviderDefaultsResponse | null>(null);
+  const [secretMasked, setSecretMasked] = useState<string>('');
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const applyProviderDefaults = (provider: EmailProvider) => {
+    if (!providerDefaults) return;
+    if (provider === 'QQ' || provider === 'NETEASE_163') {
+      const defaults = providerDefaults[provider];
+      form.setFieldsValue({
+        smtpHost: defaults.smtpHost,
+        smtpPort: defaults.smtpPort,
+        smtpSecure: defaults.smtpSecure,
+        imapHost: defaults.imapHost,
+        imapPort: defaults.imapPort,
+        imapSecure: defaults.imapSecure,
+      });
+    }
+  };
+
+  const loadConfig = async () => {
+    setLoading(true);
+    try {
+      const [defaults, config] = await Promise.all([
+        api<ProviderDefaultsResponse>('/email-config/providers/defaults', undefined, true),
+        api<MyEmailConfig | null>('/email-config/me', undefined, true),
+      ]);
+      setProviderDefaults(defaults);
+
+      if (config) {
+        form.setFieldsValue({
+          provider: config.provider,
+          emailAddress: config.emailAddress,
+          authType: config.authType,
+          smtpHost: config.smtpHost,
+          smtpPort: config.smtpPort,
+          smtpSecure: config.smtpSecure,
+          imapHost: config.imapHost,
+          imapPort: config.imapPort,
+          imapSecure: config.imapSecure,
+          popHost: config.popHost ?? undefined,
+          popPort: config.popPort ?? undefined,
+          popSecure: config.popSecure ?? undefined,
+          enabled: config.enabled,
+          secret: '',
+        });
+        setSecretMasked(config.secretMasked ?? '');
+      } else {
+        form.setFieldsValue({
+          provider: 'QQ',
+          authType: 'authorization_code',
+          smtpSecure: true,
+          imapSecure: true,
+          enabled: true,
+          secret: '',
+        });
+        setSecretMasked('');
+        applyProviderDefaults('QQ');
+      }
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onSaveEmailConfig = async () => {
+    try {
+      const values = await form.validateFields();
+      const payload = {
+        ...values,
+        emailAddress: values.emailAddress.trim(),
+        secret: values.secret?.trim() ? values.secret.trim() : undefined,
+        smtpHost: values.smtpHost.trim(),
+        imapHost: values.imapHost.trim(),
+        popHost: values.popHost?.trim() ? values.popHost.trim() : undefined,
+      };
+
+      setSaving(true);
+      const data = await api<MyEmailConfig>('/email-config/me', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }, true);
+      setSecretMasked(data.secretMasked ?? '');
+      form.setFieldValue('secret', '');
+      message.success('邮箱配置已保存');
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onTestEmailConfig = async () => {
+    try {
+      const values = await form.validateFields();
+      const payload = {
+        ...values,
+        emailAddress: values.emailAddress.trim(),
+        secret: values.secret?.trim() ? values.secret.trim() : undefined,
+        smtpHost: values.smtpHost.trim(),
+        imapHost: values.imapHost.trim(),
+        popHost: values.popHost?.trim() ? values.popHost.trim() : undefined,
+      };
+
+      if (!payload.secret) {
+        message.warning('测试前请填写授权码/密码');
+        return;
+      }
+
+      setTesting(true);
+      const result = await api<{ ok: boolean; message: string }>('/email-config/me/test', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }, true);
+      setTestResult(result);
+      if (result.ok) message.success(result.message);
+      else message.error(result.message);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return (
-    <Card title="个人信息">
-      <Space direction="vertical" size={8}>
-        <Avatar src={user.avatarImage || user.avatarUrl} size={64}>{(user.name ?? user.email).slice(0, 1)}</Avatar>
-        <Typography.Text>昵称：{user.name ?? '-'}</Typography.Text>
-        <Typography.Text>用户名：{user.username ?? '-'}</Typography.Text>
-        <Typography.Text>邮箱：{user.email}</Typography.Text>
-        <Typography.Text>角色：{user.role}</Typography.Text>
-        <Typography.Text type="secondary">用户详情页（个人视角）</Typography.Text>
-      </Space>
-    </Card>
+    <Space direction="vertical" style={{ width: '100%' }} size={16}>
+      <Card title="个人信息">
+        <Space direction="vertical" size={8}>
+          <Avatar src={user.avatarImage || user.avatarUrl} size={64}>{(user.name ?? user.email).slice(0, 1)}</Avatar>
+          <Typography.Text>昵称：{user.name ?? '-'}</Typography.Text>
+          <Typography.Text>用户名：{user.username ?? '-'}</Typography.Text>
+          <Typography.Text>邮箱：{user.email}</Typography.Text>
+          <Typography.Text>角色：{user.role}</Typography.Text>
+          <Typography.Text type="secondary">用户详情页（个人视角）</Typography.Text>
+        </Space>
+      </Card>
+
+      <Card
+        title="邮箱配置（QQ/163）"
+        loading={loading}
+        extra={
+          <Space>
+            <Button onClick={() => void onTestEmailConfig()} loading={testing}>测试配置</Button>
+            <Button type="primary" onClick={() => void onSaveEmailConfig()} loading={saving}>保存配置</Button>
+          </Space>
+        }
+      >
+        <Form form={form} layout="vertical">
+          <Space wrap style={{ width: '100%' }}>
+            <Form.Item label="邮箱服务商" name="provider" rules={[{ required: true }]}>
+              <Select
+                style={{ width: 220 }}
+                options={[
+                  { label: 'QQ 邮箱', value: 'QQ' },
+                  { label: '163 邮箱', value: 'NETEASE_163' },
+                  { label: '自定义', value: 'CUSTOM' },
+                ]}
+                onChange={(value: EmailProvider) => applyProviderDefaults(value)}
+              />
+            </Form.Item>
+
+            <Form.Item label="认证方式" name="authType" rules={[{ required: true }]}>
+              <Select
+                style={{ width: 220 }}
+                options={[
+                  { label: '授权码', value: 'authorization_code' },
+                  { label: '密码', value: 'password' },
+                ]}
+              />
+            </Form.Item>
+
+            <Form.Item label="启用" name="enabled" valuePropName="checked" initialValue>
+              <Switch />
+            </Form.Item>
+          </Space>
+
+          <Form.Item label="邮箱账号" name="emailAddress" rules={[{ required: true, type: 'email' }]}>
+            <Input placeholder="example@qq.com" style={{ maxWidth: 420 }} />
+          </Form.Item>
+
+          <Form.Item label={`授权码/密码${secretMasked ? `（已保存：${secretMasked}）` : ''}`} name="secret">
+            <Input.Password placeholder="不修改可留空；测试时必须填写" style={{ maxWidth: 420 }} />
+          </Form.Item>
+
+          <Space wrap style={{ width: '100%' }}>
+            <Form.Item label="SMTP Host" name="smtpHost" rules={[{ required: true }]}>
+              <Input style={{ width: 220 }} placeholder="smtp.qq.com" />
+            </Form.Item>
+            <Form.Item label="SMTP Port" name="smtpPort" rules={[{ required: true }]}>
+              <Input type="number" style={{ width: 160 }} />
+            </Form.Item>
+            <Form.Item label="SMTP Secure" name="smtpSecure" valuePropName="checked" initialValue>
+              <Switch />
+            </Form.Item>
+          </Space>
+
+          <Space wrap style={{ width: '100%' }}>
+            <Form.Item label="IMAP Host" name="imapHost" rules={[{ required: true }]}>
+              <Input style={{ width: 220 }} placeholder="imap.qq.com" />
+            </Form.Item>
+            <Form.Item label="IMAP Port" name="imapPort" rules={[{ required: true }]}>
+              <Input type="number" style={{ width: 160 }} />
+            </Form.Item>
+            <Form.Item label="IMAP Secure" name="imapSecure" valuePropName="checked" initialValue>
+              <Switch />
+            </Form.Item>
+          </Space>
+
+          {testResult ? (
+            <Typography.Text type={testResult.ok ? 'success' : 'danger'}>
+              测试结果：{testResult.message}
+            </Typography.Text>
+          ) : null}
+        </Form>
+      </Card>
+    </Space>
   );
 }
 

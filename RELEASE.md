@@ -13,6 +13,7 @@
 - Logo 展示优先级调整：`logoImage` > `logoUrl` > 默认文案
 - 修复系统配置创建时 `logoUrl` 为空触发 URL 校验报错问题
 - 修复系统配置创建时报错 `property removeLogoImage should not exist`：前端仅在编辑(PATCH)时提交 `removeLogoImage`，新建(POST)不再携带该字段
+- 新增个人信息页邮箱配置（QQ/163）：支持 SMTP/IMAP 主机端口、授权码保存（加密）与测试按钮
 
 - 用户头像支持上传图片（base64）与预览，展示优先级：avatarImage > avatarUrl
 - 修复系统配置 logoImage 未持久化导致左上角 Logo 不显示的问题
