@@ -201,6 +201,25 @@ type ListEmailSendLogsResponse = {
   pageSize: number;
 };
 
+type EmailInboxItem = {
+  id: string;
+  messageId: string;
+  fromAddress?: string;
+  toAddress?: string;
+  subject?: string;
+  textBody?: string;
+  htmlBody?: string;
+  receivedAt?: string;
+  createdAt: string;
+};
+
+type ListEmailInboxResponse = {
+  data: EmailInboxItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 type ListRolesResponse = RoleSummary[];
 
 type ListPermissionsResponse = PermissionItem[];
@@ -1342,44 +1361,75 @@ function RbacSettingsPage({ canUpdate }: { canUpdate: boolean }) {
 function EmailSendCenterPage() {
   const { message } = AntdApp.useApp();
   const [sending, setSending] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [rows, setRows] = useState<EmailSendLogItem[]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [total, setTotal] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [loadingInbox, setLoadingInbox] = useState(false);
+  const [logs, setLogs] = useState<EmailSendLogItem[]>([]);
+  const [inboxRows, setInboxRows] = useState<EmailInboxItem[]>([]);
+  const [logPage, setLogPage] = useState(1);
+  const [logPageSize, setLogPageSize] = useState(10);
+  const [logTotal, setLogTotal] = useState(0);
+  const [inboxPage, setInboxPage] = useState(1);
+  const [inboxPageSize, setInboxPageSize] = useState(10);
+  const [inboxTotal, setInboxTotal] = useState(0);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detail, setDetail] = useState<EmailInboxItem | null>(null);
   const [form] = Form.useForm<{ to: string; subject: string; content: string }>();
 
   const fetchLogs = async () => {
-    setLoading(true);
+    setLoadingLogs(true);
     try {
-      const query = buildListQuery({ page, pageSize }, {});
+      const query = buildListQuery({ page: logPage, pageSize: logPageSize }, {});
       const res = await api<ListEmailSendLogsResponse>(`/emails/send-logs?${query}`, undefined, true);
-      setRows(res.data);
-      setTotal(res.total);
+      setLogs(res.data);
+      setLogTotal(res.total);
     } catch (error) {
       message.error(parseError(error));
     } finally {
-      setLoading(false);
+      setLoadingLogs(false);
+    }
+  };
+
+  const fetchInbox = async () => {
+    setLoadingInbox(true);
+    try {
+      const query = buildListQuery({ page: inboxPage, pageSize: inboxPageSize }, {});
+      const res = await api<ListEmailInboxResponse>(`/emails/inbox?${query}`, undefined, true);
+      setInboxRows(res.data);
+      setInboxTotal(res.total);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoadingInbox(false);
     }
   };
 
   useEffect(() => {
     void fetchLogs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize]);
+  }, [logPage, logPageSize]);
+
+  useEffect(() => {
+    void fetchInbox();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inboxPage, inboxPageSize]);
 
   const submitSend = async () => {
     try {
       const values = await form.validateFields();
       setSending(true);
-      await api('/emails/send', {
-        method: 'POST',
-        body: JSON.stringify({
-          to: values.to.trim(),
-          subject: values.subject.trim(),
-          content: values.content.trim(),
-        }),
-      }, true);
+      await api(
+        '/emails/send',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            to: values.to.trim(),
+            subject: values.subject.trim(),
+            content: values.content.trim(),
+          }),
+        },
+        true,
+      );
       message.success('邮件发送成功');
       form.resetFields();
       void fetchLogs();
@@ -1390,49 +1440,148 @@ function EmailSendCenterPage() {
     }
   };
 
+  const syncInbox = async () => {
+    try {
+      setSyncing(true);
+      await api('/emails/sync', {
+        method: 'POST',
+        body: JSON.stringify({ limit: 30 }),
+      }, true);
+      message.success('收件箱同步完成');
+      setInboxPage(1);
+      void fetchInbox();
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const openDetail = async (id: string) => {
+    try {
+      const row = await api<EmailInboxItem>(`/emails/${id}`, undefined, true);
+      setDetail(row);
+      setDetailOpen(true);
+    } catch (error) {
+      message.error(parseError(error));
+    }
+  };
+
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={16}>
       <Card title="发件中心">
         <Form form={form} layout="vertical">
           <div className="grid-form" style={{ gridTemplateColumns: 'repeat(4, minmax(180px, 1fr))' }}>
-            <Form.Item label="收件人" name="to" rules={[{ required: true, message: '请输入收件人邮箱' }]} style={{ gridColumn: 'span 2' }}>
+            <Form.Item
+              label="收件人"
+              name="to"
+              rules={[{ required: true, message: '请输入收件人邮箱' }]}
+              style={{ gridColumn: 'span 2' }}
+            >
               <Input placeholder="多个收件人用英文逗号分隔" />
             </Form.Item>
-            <Form.Item label="主题" name="subject" rules={[{ required: true, message: '请输入主题' }]} style={{ gridColumn: 'span 2' }}>
+            <Form.Item
+              label="主题"
+              name="subject"
+              rules={[{ required: true, message: '请输入主题' }]}
+              style={{ gridColumn: 'span 2' }}
+            >
               <Input />
             </Form.Item>
-            <Form.Item label="正文" name="content" rules={[{ required: true, message: '请输入正文' }]} style={{ gridColumn: 'span 4' }}>
+            <Form.Item
+              label="正文"
+              name="content"
+              rules={[{ required: true, message: '请输入正文' }]}
+              style={{ gridColumn: 'span 4' }}
+            >
               <Input.TextArea rows={8} />
             </Form.Item>
           </div>
-          <Button type="primary" loading={sending} onClick={() => void submitSend()}>发送邮件</Button>
+          <Button type="primary" loading={sending} onClick={() => void submitSend()}>
+            发送邮件
+          </Button>
         </Form>
+      </Card>
+
+      <Card title="收件箱" extra={<Button loading={syncing} onClick={() => void syncInbox()}>同步邮件</Button>}>
+        <Table<EmailInboxItem>
+          rowKey="id"
+          loading={loadingInbox}
+          dataSource={inboxRows}
+          columns={[
+            { title: '发件人', dataIndex: 'fromAddress' },
+            { title: '主题', dataIndex: 'subject' },
+            {
+              title: '接收时间',
+              dataIndex: 'receivedAt',
+              render: (v?: string) => (v ? new Date(v).toLocaleString() : '-'),
+            },
+          ]}
+          onRow={(record) => ({ onClick: () => void openDetail(record.id), style: { cursor: 'pointer' } })}
+          pagination={{
+            current: inboxPage,
+            pageSize: inboxPageSize,
+            total: inboxTotal,
+            showSizeChanger: true,
+            onChange: (next, size) => {
+              setInboxPage(next);
+              setInboxPageSize(size);
+            },
+          }}
+        />
       </Card>
 
       <Card title="发送记录">
         <Table<EmailSendLogItem>
           rowKey="id"
-          loading={loading}
-          dataSource={rows}
+          loading={loadingLogs}
+          dataSource={logs}
           columns={[
             { title: '收件人', dataIndex: 'to' },
             { title: '主题', dataIndex: 'subject' },
-            { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={v === 'SUCCESS' ? 'green' : 'red'}>{v}</Tag> },
+            {
+              title: '状态',
+              dataIndex: 'status',
+              render: (v: string) => <Tag color={v === 'SUCCESS' ? 'green' : 'red'}>{v}</Tag>,
+            },
             { title: '时间', dataIndex: 'createdAt', render: (v: string) => new Date(v).toLocaleString() },
             { title: '错误信息', dataIndex: 'error', render: (v?: string) => v || '-' },
           ]}
           pagination={{
-            current: page,
-            pageSize,
-            total,
+            current: logPage,
+            pageSize: logPageSize,
+            total: logTotal,
             showSizeChanger: true,
             onChange: (next, size) => {
-              setPage(next);
-              setPageSize(size);
+              setLogPage(next);
+              setLogPageSize(size);
             },
           }}
         />
       </Card>
+
+      <Drawer
+        open={detailOpen}
+        width={720}
+        title={detail?.subject || '邮件详情'}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetail(null);
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Typography.Text>发件人：{detail?.fromAddress || '-'}</Typography.Text>
+          <Typography.Text>收件人：{detail?.toAddress || '-'}</Typography.Text>
+          <Typography.Text>
+            接收时间：{detail?.receivedAt ? new Date(detail.receivedAt).toLocaleString() : '-'}
+          </Typography.Text>
+          <Card size="small">
+            <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
+              {detail?.textBody || '（无纯文本正文）'}
+            </Typography.Paragraph>
+          </Card>
+        </Space>
+      </Drawer>
     </Space>
   );
 }

@@ -219,3 +219,4 @@ pm2 save
 - 用户管理：列表支持行点击编辑、多选批量删除；编辑页头像置顶
 - 邮件发件中心：`/emails/send`（依赖用户邮箱配置）
 - 接口：`POST /emails/send`、`GET /emails/send-logs`
+- 收件箱能力：`POST /emails/sync`（IMAP同步）、`GET /emails/inbox`、`GET /emails/:id`

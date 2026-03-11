@@ -29,3 +29,27 @@ export class ListSendLogsQueryDto {
   @Max(100)
   pageSize?: number;
 }
+
+export class SyncEmailsDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
+
+export class ListInboxQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize?: number;
+}
