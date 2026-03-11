@@ -491,3 +491,12 @@ body {
 .app-content > .ant-space.ant-space-vertical > .ant-space-item {
   margin: 0 !important;
 }
+
+/* 按需求：删除框架筛选块头部容器（ant-card-head） */
+.app-content .ant-card .ant-card-head {
+  display: none !important;
+}
+
+.app-content .ant-card .ant-card-body {
+  padding-top: 16px;
+}
