@@ -500,3 +500,8 @@ body {
 .app-content .ant-card .ant-card-body {
   padding-top: 16px;
 }
+
+/* 按需求：ant-space-item 不要圆角 */
+.app-content .ant-space-item {
+  border-radius: 0 !important;
+}
