@@ -39,6 +39,10 @@ export class ModuleEnabledGuard implements CanActivate {
       await this.modulesService.assertEnabled('hr');
     }
 
+    if (routePath.includes('risk-control')) {
+      await this.modulesService.assertEnabled('risk-control');
+    }
+
     return true;
   }
 }

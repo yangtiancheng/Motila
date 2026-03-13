@@ -49,6 +49,12 @@ enum EmployeeStatus {
   INACTIVE
 }
 
+enum RiskConfigVersionStatus {
+  DRAFT
+  PUBLISHED
+  ROLLED_BACK
+}
+
 model User {
   id            String          @id @default(cuid())
   username      String          @unique
@@ -248,4 +254,27 @@ model SystemConfig {
   isActive   Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model RiskControlConfig {
+  id         String   @id @default(cuid())
+  enabled    Boolean  @default(true)
+  version    Int      @default(1)
+  contentJson String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model RiskControlConfigVersion {
+  id          String                  @id @default(cuid())
+  version     Int                     @unique
+  status      RiskConfigVersionStatus @default(DRAFT)
+  contentJson String
+  comment     String?
+  createdBy   String?
+  publishedBy String?
+  rolledBackFromVersion Int?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  publishedAt DateTime?
 }

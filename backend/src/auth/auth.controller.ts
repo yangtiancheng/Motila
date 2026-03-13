@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { CurrentRequestMeta, type RequestMeta } from '../common/current-request-meta.decorator';
 import { CurrentUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
 import type { JwtUser } from '../common/jwt-user.type';
@@ -16,18 +17,18 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  register(@Body() dto: RegisterDto, @CurrentRequestMeta() requestMeta: RequestMeta) {
+    return this.authService.register(dto, requestMeta);
   }
 
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @CurrentRequestMeta() requestMeta: RequestMeta) {
+    return this.authService.login(dto, requestMeta);
   }
 
   @Post('forgot-password')
-  forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto);
+  forgotPassword(@Body() dto: ForgotPasswordDto, @CurrentRequestMeta() requestMeta: RequestMeta) {
+    return this.authService.forgotPassword(dto, requestMeta);
   }
 
   @Get('me')

@@ -100,6 +100,53 @@ type SystemConfigItem = {
   updatedAt: string;
 };
 
+type RiskSceneCode = 'login' | 'register' | 'forgotPassword';
+
+type RiskScenePolicy = {
+  enabled: boolean;
+  thresholds: {
+    perMinute?: number;
+    perHour?: number;
+    perDay?: number;
+  };
+  captchaAfterFailures: number;
+  captchaTtlSec: number;
+  blockAfterFailures: number;
+  blockTtlSec: number;
+  retryAfterSec: number;
+};
+
+type RiskControlConfigContent = {
+  enabled: boolean;
+  scenes: Record<RiskSceneCode, RiskScenePolicy>;
+  whitelist: { ips: string[]; accounts: string[] };
+  blacklist: { ips: string[]; accounts: string[] };
+  degradePolicy: { redisUnavailable: 'ALLOW_WITH_CAPTCHA' | 'BLOCK_REQUESTS' };
+};
+
+type RiskControlConfigResponse = {
+  id: string;
+  enabled: boolean;
+  version: number;
+  content: RiskControlConfigContent;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type RiskControlVersionItem = {
+  id: string;
+  version: number;
+  status: 'DRAFT' | 'PUBLISHED' | 'ROLLED_BACK';
+  comment?: string | null;
+  createdBy?: string | null;
+  publishedBy?: string | null;
+  rolledBackFromVersion?: number | null;
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  content: RiskControlConfigContent;
+};
+
 type EmailProvider = 'QQ' | 'NETEASE_163' | 'CUSTOM';
 
 type MyEmailConfig = {
@@ -2482,6 +2529,280 @@ function ModulesPage({
   );
 }
 
+
+const DEFAULT_RISK_CONTROL_CONTENT: RiskControlConfigContent = {
+  enabled: true,
+  scenes: {
+    login: {
+      enabled: true,
+      thresholds: { perMinute: 20, perHour: 100 },
+      captchaAfterFailures: 5,
+      captchaTtlSec: 1800,
+      blockAfterFailures: 20,
+      blockTtlSec: 3600,
+      retryAfterSec: 60,
+    },
+    register: {
+      enabled: true,
+      thresholds: { perMinute: 5, perHour: 20 },
+      captchaAfterFailures: 2,
+      captchaTtlSec: 1800,
+      blockAfterFailures: 10,
+      blockTtlSec: 3600,
+      retryAfterSec: 120,
+    },
+    forgotPassword: {
+      enabled: true,
+      thresholds: { perMinute: 1, perHour: 5, perDay: 10 },
+      captchaAfterFailures: 3,
+      captchaTtlSec: 1800,
+      blockAfterFailures: 10,
+      blockTtlSec: 86400,
+      retryAfterSec: 300,
+    },
+  },
+  whitelist: { ips: [], accounts: [] },
+  blacklist: { ips: [], accounts: [] },
+  degradePolicy: { redisUnavailable: 'ALLOW_WITH_CAPTCHA' },
+};
+
+function linesToArray(value?: string) {
+  return (value ?? '')
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function arrayToLines(value?: string[]) {
+  return (value ?? []).join('\n');
+}
+
+function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
+  const { message } = AntdApp.useApp();
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [config, setConfig] = useState<RiskControlConfigResponse | null>(null);
+  const [versions, setVersions] = useState<RiskControlVersionItem[]>([]);
+
+  const loadVersions = async () => {
+    setVersionsLoading(true);
+    try {
+      const data = await api<RiskControlVersionItem[]>('/risk-control/versions', undefined, true);
+      setVersions(data);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setVersionsLoading(false);
+    }
+  };
+
+  const loadConfig = async () => {
+    setLoading(true);
+    try {
+      const data = await api<RiskControlConfigResponse>('/risk-control/config', undefined, true);
+      setConfig(data);
+      form.setFieldsValue({
+        enabled: data.content.enabled,
+        degradePolicy: data.content.degradePolicy.redisUnavailable,
+        whitelistIps: arrayToLines(data.content.whitelist.ips),
+        whitelistAccounts: arrayToLines(data.content.whitelist.accounts),
+        blacklistIps: arrayToLines(data.content.blacklist.ips),
+        blacklistAccounts: arrayToLines(data.content.blacklist.accounts),
+        scenes: data.content.scenes,
+      });
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadConfig();
+    void loadVersions();
+  }, []);
+
+  const buildPayload = async () => {
+    const values = await form.validateFields();
+    return {
+      content: {
+        enabled: !!values.enabled,
+        scenes: values.scenes ?? DEFAULT_RISK_CONTROL_CONTENT.scenes,
+        whitelist: {
+          ips: linesToArray(values.whitelistIps),
+          accounts: linesToArray(values.whitelistAccounts),
+        },
+        blacklist: {
+          ips: linesToArray(values.blacklistIps),
+          accounts: linesToArray(values.blacklistAccounts),
+        },
+        degradePolicy: {
+          redisUnavailable: values.degradePolicy ?? 'ALLOW_WITH_CAPTCHA',
+        },
+      },
+    };
+  };
+
+  const saveDraft = async () => {
+    setSaving(true);
+    try {
+      const payload = await buildPayload();
+      await api('/risk-control/config', { method: 'PUT', body: JSON.stringify(payload) }, true);
+      message.success('风控配置草稿已保存');
+      await loadVersions();
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const publish = async () => {
+    setPublishing(true);
+    try {
+      await api('/risk-control/publish', { method: 'POST', body: JSON.stringify({}) }, true);
+      message.success('风控配置已发布');
+      await loadConfig();
+      await loadVersions();
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const rollback = async (version: number) => {
+    try {
+      await api('/risk-control/rollback', { method: 'POST', body: JSON.stringify({ version }) }, true);
+      message.success(`已回滚到版本 ${version}`);
+      await loadConfig();
+      await loadVersions();
+    } catch (error) {
+      message.error(parseError(error));
+    }
+  };
+
+  const sceneCards: Array<{ key: RiskSceneCode; title: string }> = [
+    { key: 'login', title: '登录' },
+    { key: 'register', title: '注册' },
+    { key: 'forgotPassword', title: '忘记密码' },
+  ];
+
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Card
+        title="风控配置"
+        loading={loading}
+        extra={
+          <Space>
+            <Button onClick={() => { void loadConfig(); void loadVersions(); }}>刷新</Button>
+            <Button onClick={() => void saveDraft()} loading={saving} disabled={!canUpdate}>保存草稿</Button>
+            <Button type="primary" onClick={() => void publish()} loading={publishing} disabled={!canUpdate}>发布</Button>
+          </Space>
+        }
+      >
+        <Form form={form} layout="vertical" initialValues={{
+          enabled: true,
+          degradePolicy: 'ALLOW_WITH_CAPTCHA',
+          scenes: DEFAULT_RISK_CONTROL_CONTENT.scenes,
+        }}>
+          <Space size={24} wrap>
+            <Form.Item label="总开关" name="enabled" valuePropName="checked">
+              <Switch disabled={!canUpdate} />
+            </Form.Item>
+            <Form.Item label="Redis 不可用时策略" name="degradePolicy">
+              <Select
+                disabled={!canUpdate}
+                style={{ width: 240 }}
+                options={[
+                  { label: '允许请求并强制验证码', value: 'ALLOW_WITH_CAPTCHA' },
+                  { label: '直接阻断请求', value: 'BLOCK_REQUESTS' },
+                ]}
+              />
+            </Form.Item>
+          </Space>
+
+          {sceneCards.map((scene) => (
+            <Card key={scene.key} type="inner" title={scene.title} style={{ marginBottom: 16 }}>
+              <Space size={24} wrap align="start">
+                <Form.Item label="启用" name={['scenes', scene.key, 'enabled']} valuePropName="checked">
+                  <Switch disabled={!canUpdate} />
+                </Form.Item>
+                <Form.Item label="每分钟" name={['scenes', scene.key, 'thresholds', 'perMinute']}>
+                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 120 }} />
+                </Form.Item>
+                <Form.Item label="每小时" name={['scenes', scene.key, 'thresholds', 'perHour']}>
+                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 120 }} />
+                </Form.Item>
+                <Form.Item label="每天" name={['scenes', scene.key, 'thresholds', 'perDay']}>
+                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 120 }} />
+                </Form.Item>
+                <Form.Item label="失败几次触发验证码" name={['scenes', scene.key, 'captchaAfterFailures']}>
+                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 140 }} />
+                </Form.Item>
+                <Form.Item label="验证码 TTL(秒)" name={['scenes', scene.key, 'captchaTtlSec']}>
+                  <Input type="number" min={60} disabled={!canUpdate} style={{ width: 140 }} />
+                </Form.Item>
+                <Form.Item label="失败几次封禁" name={['scenes', scene.key, 'blockAfterFailures']}>
+                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 140 }} />
+                </Form.Item>
+                <Form.Item label="封禁 TTL(秒)" name={['scenes', scene.key, 'blockTtlSec']}>
+                  <Input type="number" min={60} disabled={!canUpdate} style={{ width: 140 }} />
+                </Form.Item>
+                <Form.Item label="Retry-After(秒)" name={['scenes', scene.key, 'retryAfterSec']}>
+                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 140 }} />
+                </Form.Item>
+              </Space>
+            </Card>
+          ))}
+
+          <Card type="inner" title="白名单 / 黑名单">
+            <Space size={16} align="start" wrap style={{ width: '100%' }}>
+              <Form.Item label="IP 白名单" name="whitelistIps" style={{ minWidth: 260, flex: 1 }}>
+                <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个 IP" />
+              </Form.Item>
+              <Form.Item label="账号白名单" name="whitelistAccounts" style={{ minWidth: 260, flex: 1 }}>
+                <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个账号" />
+              </Form.Item>
+              <Form.Item label="IP 黑名单" name="blacklistIps" style={{ minWidth: 260, flex: 1 }}>
+                <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个 IP" />
+              </Form.Item>
+              <Form.Item label="账号黑名单" name="blacklistAccounts" style={{ minWidth: 260, flex: 1 }}>
+                <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个账号" />
+              </Form.Item>
+            </Space>
+          </Card>
+        </Form>
+      </Card>
+
+      <Card title={`版本列表${config ? `（当前生效：v${config.version}）` : ''}`} loading={versionsLoading}>
+        <Table<RiskControlVersionItem>
+          rowKey="id"
+          dataSource={versions}
+          pagination={false}
+          columns={[
+            { title: '版本', dataIndex: 'version', key: 'version', width: 90 },
+            { title: '状态', dataIndex: 'status', key: 'status', width: 120, render: (value: string) => <Tag color={value === 'PUBLISHED' ? 'green' : value === 'DRAFT' ? 'orange' : 'default'}>{value}</Tag> },
+            { title: '说明', dataIndex: 'comment', key: 'comment', render: (value?: string | null) => value || '-' },
+            { title: '发布时间', dataIndex: 'publishedAt', key: 'publishedAt', width: 180, render: (value?: string | null) => value ? new Date(value).toLocaleString() : '-' },
+            {
+              title: '操作', key: 'actions', width: 120,
+              render: (_: unknown, record) => (
+                <Button size="small" disabled={!canUpdate || record.status === 'PUBLISHED'} onClick={() => void rollback(record.version)}>
+                  回滚
+                </Button>
+              ),
+            },
+          ]}
+        />
+      </Card>
+    </Space>
+  );
+}
+
 function AppShell({
   user,
   onLogout,
@@ -2628,6 +2949,8 @@ function AppShell({
   const canAuditRead = can('audit.read');
   const canRbacRead = can('rbac.read');
   const canRbacUpdate = can('rbac.update');
+  const canRiskRead = can('risk.read');
+  const canRiskUpdate = can('risk.update');
 
   useEffect(() => {
     if (!user?.permissions?.length) return;
@@ -2641,13 +2964,15 @@ function AppShell({
       (location.pathname.startsWith('/hr') && !canHrRead) ||
       (location.pathname.startsWith('/settings/system') && !canSettingsRead) ||
       (location.pathname.startsWith('/settings/modules') && !canModuleRead) ||
-      (location.pathname.startsWith('/settings/rbac') && !canRbacRead);
+      (location.pathname.startsWith('/settings/rbac') && !canRbacRead) ||
+      (location.pathname.startsWith('/settings/risk-control') && !canRiskRead);
 
     const isRouteDisabledByModule =
       (location.pathname.startsWith('/users') && !enabledModuleCodes.has('users')) ||
       (location.pathname.startsWith('/audit-logs') && !enabledModuleCodes.has('audit')) ||
       (location.pathname.startsWith('/projects') && !enabledModuleCodes.has('project')) ||
-      (location.pathname.startsWith('/hr') && !enabledModuleCodes.has('hr'));
+      (location.pathname.startsWith('/hr') && !enabledModuleCodes.has('hr')) ||
+      (location.pathname.startsWith('/settings/risk-control') && !enabledModuleCodes.has('risk-control'));
 
     if (isRouteForbidden || isRouteDisabledByModule) {
       message.warning('当前无权限或模块已关闭，已为你跳转到仪表盘');
@@ -2661,6 +2986,7 @@ function AppShell({
     canProjectRead,
     canUsersRead,
     canRbacRead,
+    canRiskRead,
     canSettingsRead,
     enabledModuleCodes,
     location.pathname,
@@ -2714,6 +3040,8 @@ function AppShell({
       items.push({ title: '配置' }, { title: '审计日志' });
     } else if (location.pathname.startsWith('/settings/theme')) {
       items.push({ title: '配置' }, { title: '主题设置' });
+    } else if (location.pathname.startsWith('/settings/risk-control')) {
+      items.push({ title: '配置' }, { title: '风控配置' });
     } else if (location.pathname.startsWith('/profile')) {
       items.push({ title: '个人信息' });
     } else {
@@ -2928,6 +3256,7 @@ function AppShell({
                   />
                 }
               />
+              {canRiskRead ? <Route path="/settings/risk-control" element={<RiskControlPage canUpdate={canRiskUpdate} />} /> : null}
               <Route path="/profile" element={<ProfilePage user={user} />} />
 
               {canUsersRead ? (

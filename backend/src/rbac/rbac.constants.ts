@@ -30,4 +30,7 @@ export const SYSTEM_PERMISSIONS = [
 
   { code: 'settings.read', name: '查看系统配置', moduleCode: 'core' },
   { code: 'settings.update', name: '修改系统配置', moduleCode: 'core' },
+
+  { code: 'risk.read', name: '查看风控配置', moduleCode: 'risk-control' },
+  { code: 'risk.update', name: '修改风控配置', moduleCode: 'risk-control' },
 ] as const;
