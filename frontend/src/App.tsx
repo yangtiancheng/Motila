@@ -2907,6 +2907,21 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
                 </Form.Item>
               </Space>
             </Card>
+
+            <Card type="inner" title="操作区">
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                保存草稿仅保存当前编辑内容，不会立刻影响线上；点击“发布生效”后，当前草稿才会成为正式风控配置。
+              </Typography.Paragraph>
+              <Space wrap>
+                <Button onClick={() => { void loadConfig(); void loadVersions(); }}>刷新配置</Button>
+                <Button type="default" onClick={() => void saveDraft()} loading={saving} disabled={!canUpdate}>
+                  保存草稿
+                </Button>
+                <Button type="primary" onClick={() => void publish()} loading={publishing} disabled={!canUpdate}>
+                  发布生效
+                </Button>
+              </Space>
+            </Card>
           </Form>
         </Space>
       </Card>
