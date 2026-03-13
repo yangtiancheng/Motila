@@ -16,6 +16,7 @@ import {
   Menu,
   Modal,
   Descriptions,
+  Divider,
   Popconfirm,
   Select,
   Space,
@@ -1190,6 +1191,8 @@ function RbacRoleEditorPage({ canUpdate }: { canUpdate: boolean }) {
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [form] = Form.useForm<RoleFormValues>();
+  const isSystemRole = !!role?.isSystem;
+  const disableRoleMetaEdit = !canUpdate || isSystemRole;
 
   const groupedPermissions = useMemo(() => {
     const map = new Map<string, PermissionItem[]>();
@@ -1259,22 +1262,24 @@ function RbacRoleEditorPage({ canUpdate }: { canUpdate: boolean }) {
           method: 'POST',
           body: JSON.stringify({ code: values.code, name: values.name, description: values.description }),
         }, true);
-      } else {
+      } else if (!isSystemRole) {
         await api(`/rbac/roles/${targetCode}`, {
           method: 'PUT',
           body: JSON.stringify({ name: values.name, description: values.description }),
         }, true);
       }
 
-      await api(`/rbac/roles/${targetCode}/permissions`, {
-        method: 'PUT',
-        body: JSON.stringify({ permissionCodes: selectedPermissions }),
-      }, true);
+      if (!isSystemRole) {
+        await api(`/rbac/roles/${targetCode}/permissions`, {
+          method: 'PUT',
+          body: JSON.stringify({ permissionCodes: selectedPermissions }),
+        }, true);
 
-      await api(`/rbac/roles/${targetCode}/modules`, {
-        method: 'PUT',
-        body: JSON.stringify({ moduleCodes: selectedModules }),
-      }, true);
+        await api(`/rbac/roles/${targetCode}/modules`, {
+          method: 'PUT',
+          body: JSON.stringify({ moduleCodes: selectedModules }),
+        }, true);
+      }
 
       await api(`/rbac/roles/${targetCode}/users`, {
         method: 'PUT',
@@ -1316,17 +1321,25 @@ function RbacRoleEditorPage({ canUpdate }: { canUpdate: boolean }) {
                 { pattern: /^[A-Z][A-Z0-9_]{1,30}$/, message: '仅支持大写字母/数字/下划线，且以字母开头' },
               ]}
             >
-              <Input placeholder="例如：SALES_MANAGER" disabled={!isCreate} />
+              <Input placeholder="例如：SALES_MANAGER" disabled={!isCreate || disableRoleMetaEdit} />
             </Form.Item>
             <Form.Item label="角色名称" name="name" rules={[{ required: true, message: '请输入角色名称' }]}>
-              <Input placeholder="例如：销售经理" />
+              <Input placeholder="例如：销售经理" disabled={disableRoleMetaEdit} />
             </Form.Item>
             <Form.Item label="描述" name="description">
-              <Input placeholder="可选" />
+              <Input placeholder="可选" disabled={disableRoleMetaEdit} />
             </Form.Item>
           </div>
         </Form>
       </Card>
+
+      {isSystemRole ? (
+        <Alert
+          type="info"
+          showIcon
+          message="系统内置角色不可修改名称、描述、权限和模块授权，但可以调整包含用户。"
+        />
+      ) : null}
 
       <Card className="keep-card-head" title="权限点">
         <Space direction="vertical" style={{ width: '100%' }} size={12}>
@@ -1335,6 +1348,7 @@ function RbacRoleEditorPage({ canUpdate }: { canUpdate: boolean }) {
             return (
               <Card key={moduleCode} size="small" title={`模块：${moduleCode}`}>
                 <Checkbox.Group
+                  disabled={disableRoleMetaEdit}
                   value={selectedPermissions.filter((code) => moduleCodes.includes(code))}
                   onChange={(values) => {
                     const moduleSet = new Set(moduleCodes);
@@ -1355,6 +1369,7 @@ function RbacRoleEditorPage({ canUpdate }: { canUpdate: boolean }) {
 
       <Card className="keep-card-head" title="模块授权">
         <Checkbox.Group
+          disabled={disableRoleMetaEdit}
           value={selectedModules}
           onChange={(values) => setSelectedModules(values as string[])}
           options={modules.map((module) => ({
@@ -2803,14 +2818,16 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
               <Card
                 key={scene.key}
                 type="inner"
-                title={scene.title}
-                style={{ marginBottom: 16 }}
-                extra={<Tag color="blue">场景说明已补充</Tag>}
+                style={{ marginBottom: 24 }}
               >
-                <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                  <Typography.Title level={5} style={{ margin: 0, textAlign: 'left' }}>
+                    {scene.title}
+                  </Typography.Title>
+
                   <Card size="small" style={{ background: '#fafafa' }}>
                     <Typography.Paragraph style={{ marginBottom: 8 }}>
-                      <strong>这块是干啥的：</strong>{scene.summary}
+                      {scene.summary}
                     </Typography.Paragraph>
                     <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
                       <strong>推荐起步值：</strong>{scene.recommended}
@@ -2821,6 +2838,8 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
                       ))}
                     </ul>
                   </Card>
+
+                  <Divider style={{ margin: 0 }} />
 
                   <Space size={24} wrap align="start">
                     <Form.Item
@@ -3854,13 +3873,6 @@ function App() {
 
                     {authCaptchaRequired && authCaptcha ? (
                       <>
-                        <Alert
-                          type="warning"
-                          showIcon
-                          style={{ marginBottom: 16 }}
-                          message="当前操作已触发验证码校验"
-                          description="连续失败次数达到风控阈值后，需要先完成图形验证码。点击图片或“换一张”可以刷新。"
-                        />
                         <Form.Item
                           label="验证码"
                           name="captchaCode"

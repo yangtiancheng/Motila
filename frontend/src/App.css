@@ -156,7 +156,7 @@ body {
 .avatar-upload-box {
   width: 120px;
   height: 120px;
-  border-radius: 12px;
+  border-radius: 999px;
   overflow: hidden;
   border: 1px dashed #94a3b8;
   cursor: pointer;
