@@ -1,5 +1,6 @@
 import {
   App as AntdApp,
+  Alert,
   Breadcrumb,
   Button,
   Card,
@@ -78,6 +79,20 @@ type UserItem = AuthUser & {
 type AuthResponse = {
   token: string;
   user: AuthUser;
+};
+
+type CaptchaResponse = {
+  captchaId: string;
+  imageData: string;
+  expiresInSec: number;
+  scene: RiskSceneCode;
+};
+
+type ApiErrorPayload = {
+  message?: string | string[];
+  needCaptcha?: boolean;
+  scene?: RiskSceneCode;
+  retryAfterSec?: number;
 };
 
 type ListUsersResponse = {
@@ -312,7 +327,7 @@ type PermissionItem = {
 function parseError(error: unknown): string {
   if (error instanceof Error && error.message) {
     try {
-      const parsed = JSON.parse(error.message) as { message?: string | string[] };
+      const parsed = JSON.parse(error.message) as ApiErrorPayload;
       const msg = parsed.message;
       if (Array.isArray(msg)) return msg.join('；');
       if (typeof msg === 'string') return msg;
@@ -322,6 +337,15 @@ function parseError(error: unknown): string {
     return error.message;
   }
   return '操作失败';
+}
+
+function parseApiErrorPayload(error: unknown): ApiErrorPayload | null {
+  if (!(error instanceof Error) || !error.message) return null;
+  try {
+    return JSON.parse(error.message) as ApiErrorPayload;
+  } catch {
+    return null;
+  }
 }
 
 async function api<T>(path: string, init?: RequestInit, withAuth = false): Promise<T> {
@@ -3572,9 +3596,13 @@ function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [authCaptcha, setAuthCaptcha] = useState<CaptchaResponse | null>(null);
+  const [forgotCaptcha, setForgotCaptcha] = useState<CaptchaResponse | null>(null);
+  const [authCaptchaRequired, setAuthCaptchaRequired] = useState(false);
+  const [forgotCaptchaRequired, setForgotCaptchaRequired] = useState(false);
 
-  const [authForm] = Form.useForm<{ username: string; email?: string; name?: string; password: string }>();
-  const [forgotForm] = Form.useForm<{ username?: string; email?: string }>();
+  const [authForm] = Form.useForm<{ username: string; email?: string; name?: string; password: string; captchaCode?: string }>();
+  const [forgotForm] = Form.useForm<{ username?: string; email?: string; captchaCode?: string }>();
 
   const [token, setToken] = useState<string>(() => localStorage.getItem('motila_token') ?? '');
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -3594,6 +3622,15 @@ function App() {
     media.addEventListener('change', handler);
     return () => media.removeEventListener('change', handler);
   }, []);
+
+  const loadCaptcha = async (scene: RiskSceneCode) => {
+    const data = await api<CaptchaResponse>(`/auth/captcha?scene=${scene}`);
+    if (scene === 'forgotPassword') {
+      setForgotCaptcha(data);
+      return;
+    }
+    setAuthCaptcha(data);
+  };
 
   useEffect(() => {
     if (!token || !user) return;
@@ -3649,17 +3686,23 @@ function App() {
     document.title = publicSystemTitle;
   }, [isAuthed, publicSystemTitle]);
 
-  const onSubmitAuth = async (values: { username: string; email?: string; name?: string; password: string }) => {
+  const onSubmitAuth = async (values: { username: string; email?: string; name?: string; password: string; captchaCode?: string }) => {
     setAuthLoading(true);
     try {
+      const payloadBase = {
+        username: values.username,
+        password: values.password,
+        captchaId: authCaptcha?.captchaId,
+        captchaCode: values.captchaCode,
+      };
+
       const payload =
         mode === 'login'
-          ? { username: values.username, password: values.password }
+          ? payloadBase
           : {
-              username: values.username,
+              ...payloadBase,
               email: values.email,
               name: values.name,
-              password: values.password,
             };
 
       const data = await api<AuthResponse>(mode === 'login' ? '/auth/login' : '/auth/register', {
@@ -3686,8 +3729,21 @@ function App() {
       setToken(data.token);
       setUser(mergedUser);
       message.success(mode === 'login' ? '登录成功' : '注册成功');
-      authForm.resetFields(['password']);
+      authForm.resetFields(['password', 'captchaCode']);
+      setAuthCaptchaRequired(false);
+      setAuthCaptcha(null);
     } catch (error) {
+      const payload = parseApiErrorPayload(error);
+      if (payload?.needCaptcha) {
+        setAuthCaptchaRequired(true);
+        if (!authCaptcha) {
+          try {
+            await loadCaptcha(payload.scene ?? (mode === 'login' ? 'login' : 'register'));
+          } catch {
+            // ignore load failure
+          }
+        }
+      }
       message.error(parseError(error));
     } finally {
       setAuthLoading(false);
@@ -3707,16 +3763,31 @@ function App() {
         body: JSON.stringify({
           username: values.username?.trim() ? values.username.trim() : undefined,
           email: values.email?.trim() ? values.email.trim() : undefined,
+          captchaId: forgotCaptcha?.captchaId,
+          captchaCode: values.captchaCode,
         }),
       });
       if (res.ok) {
         message.success(res.message);
         setForgotOpen(false);
         forgotForm.resetFields();
+        setForgotCaptchaRequired(false);
+        setForgotCaptcha(null);
       } else {
         message.warning(res.message);
       }
     } catch (error) {
+      const payload = parseApiErrorPayload(error);
+      if (payload?.needCaptcha) {
+        setForgotCaptchaRequired(true);
+        if (!forgotCaptcha) {
+          try {
+            await loadCaptcha('forgotPassword');
+          } catch {
+            // ignore load failure
+          }
+        }
+      }
       message.error(parseError(error));
     } finally {
       setForgotSubmitting(false);
@@ -3781,6 +3852,37 @@ function App() {
                       <Input.Password size="large" placeholder="请输入密码" />
                     </Form.Item>
 
+                    {authCaptchaRequired && authCaptcha ? (
+                      <>
+                        <Alert
+                          type="warning"
+                          showIcon
+                          style={{ marginBottom: 16 }}
+                          message="当前操作已触发验证码校验"
+                          description="连续失败次数达到风控阈值后，需要先完成图形验证码。点击图片或“换一张”可以刷新。"
+                        />
+                        <Form.Item
+                          label="验证码"
+                          name="captchaCode"
+                          rules={[{ required: true, message: '请输入验证码' }]}
+                          extra="验证码默认 5 分钟内有效，不区分大小写。"
+                        >
+                          <Space.Compact style={{ width: '100%' }}>
+                            <Input size="large" placeholder="输入图中验证码" maxLength={16} />
+                            <Button onClick={() => void loadCaptcha(mode === 'login' ? 'login' : 'register')}>换一张</Button>
+                          </Space.Compact>
+                        </Form.Item>
+                        <div style={{ marginTop: -8, marginBottom: 16 }}>
+                          <img
+                            src={authCaptcha.imageData}
+                            alt="captcha"
+                            style={{ height: 44, cursor: 'pointer', borderRadius: 8, border: '1px solid #f0f0f0', background: '#fff' }}
+                            onClick={() => void loadCaptcha(mode === 'login' ? 'login' : 'register')}
+                          />
+                        </div>
+                      </>
+                    ) : null}
+
                     <div className="auth-actions">
                       <Button type="primary" htmlType="submit" loading={authLoading} size="large" block>
                         {mode === 'login' ? '立即登录' : '立即注册'}
@@ -3788,13 +3890,21 @@ function App() {
 
                       {mode === 'login' ? (
                         <Space size={16}>
-                          <Typography.Link className="auth-mode-link" onClick={() => setMode('register')}>
+                          <Typography.Link className="auth-mode-link" onClick={() => {
+                            setMode('register');
+                            setAuthCaptchaRequired(false);
+                            setAuthCaptcha(null);
+                            authForm.resetFields(['captchaCode']);
+                          }}>
                             注册账号
                           </Typography.Link>
                           <Typography.Link
                             className="auth-mode-link"
                             onClick={() => {
                               setForgotOpen(true);
+                              setForgotCaptchaRequired(false);
+                              setForgotCaptcha(null);
+                              forgotForm.resetFields(['captchaCode']);
                               forgotForm.setFieldsValue({ username: authForm.getFieldValue('username') });
                             }}
                           >
@@ -3802,7 +3912,12 @@ function App() {
                           </Typography.Link>
                         </Space>
                       ) : (
-                        <Typography.Link className="auth-mode-link" onClick={() => setMode('login')}>
+                        <Typography.Link className="auth-mode-link" onClick={() => {
+                          setMode('login');
+                          setAuthCaptchaRequired(false);
+                          setAuthCaptcha(null);
+                          authForm.resetFields(['captchaCode']);
+                        }}>
                           返回登录
                         </Typography.Link>
                       )}
@@ -3817,7 +3932,12 @@ function App() {
         <Modal
           title="邮箱找回密码"
           open={forgotOpen}
-          onCancel={() => setForgotOpen(false)}
+          onCancel={() => {
+            setForgotOpen(false);
+            setForgotCaptchaRequired(false);
+            setForgotCaptcha(null);
+            forgotForm.resetFields(['captchaCode']);
+          }}
           onOk={() => void onSubmitForgotPassword()}
           okText="发送重置邮件"
           cancelText="取消"
@@ -3831,7 +3951,36 @@ function App() {
             <Form.Item label="邮箱（可选）" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }]}>
               <Input placeholder="you@example.com（或只填用户名）" />
             </Form.Item>
-            <Typography.Text type="secondary">用户名和邮箱填一个就行。系统会发送临时密码到该用户已绑定邮箱。</Typography.Text>
+            {forgotCaptchaRequired && forgotCaptcha ? (
+              <>
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  message="当前找回密码请求需要验证码"
+                  description="为了防止恶意探测，达到风控阈值后必须先通过图形验证码。"
+                />
+                <Form.Item
+                  label="验证码"
+                  name="captchaCode"
+                  rules={[{ required: true, message: '请输入验证码' }]}
+                >
+                  <Space.Compact style={{ width: '100%' }}>
+                    <Input placeholder="输入图中验证码" maxLength={16} />
+                    <Button onClick={() => void loadCaptcha('forgotPassword')}>换一张</Button>
+                  </Space.Compact>
+                </Form.Item>
+                <div style={{ marginTop: -8, marginBottom: 12 }}>
+                  <img
+                    src={forgotCaptcha.imageData}
+                    alt="captcha"
+                    style={{ height: 44, cursor: 'pointer', borderRadius: 8, border: '1px solid #f0f0f0', background: '#fff' }}
+                    onClick={() => void loadCaptcha('forgotPassword')}
+                  />
+                </div>
+              </>
+            ) : null}
+            <Typography.Text type="secondary">用户名和邮箱填一个就行。系统会在账号信息存在且已绑定邮箱时发送临时密码邮件。</Typography.Text>
           </Form>
         </Modal>
       </ConfigProvider>

@@ -1,5 +1,7 @@
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -11,6 +13,7 @@ import type { RequestMeta } from '../common/current-request-meta.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { RbacService } from '../rbac/rbac.service';
 import { EmailConfigService } from '../email-config/email-config.service';
+import { RiskCaptchaService } from '../risk-control/risk-captcha.service';
 import { RiskRuntimeService } from '../risk-control/risk-runtime.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -24,12 +27,20 @@ export class AuthService {
     private readonly rbacService: RbacService,
     private readonly emailConfigService: EmailConfigService,
     private readonly riskRuntimeService: RiskRuntimeService,
+    private readonly riskCaptchaService: RiskCaptchaService,
   ) {}
+
+  getCaptcha(scene: 'login' | 'register' | 'forgotPassword') {
+    return this.riskCaptchaService.createCaptcha(scene);
+  }
 
   async register(dto: RegisterDto, requestMeta?: RequestMeta) {
     const account = dto.email?.trim().toLowerCase() || dto.username?.trim().toLowerCase();
     const ip = this.extractIp(requestMeta);
-    await this.riskRuntimeService.preCheck({ scene: 'register', ip, account });
+    const riskDecision = await this.riskRuntimeService.preCheck({ scene: 'register', ip, account });
+    if (riskDecision.needCaptcha) {
+      this.assertCaptcha('register', dto.captchaId, dto.captchaCode);
+    }
 
     try {
       const existingByUsername = await this.prisma.user.findUnique({ where: { username: dto.username } });
@@ -80,7 +91,10 @@ export class AuthService {
   async login(dto: LoginDto, requestMeta?: RequestMeta) {
     const account = dto.username?.trim().toLowerCase();
     const ip = this.extractIp(requestMeta);
-    await this.riskRuntimeService.preCheck({ scene: 'login', ip, account });
+    const riskDecision = await this.riskRuntimeService.preCheck({ scene: 'login', ip, account });
+    if (riskDecision.needCaptcha) {
+      this.assertCaptcha('login', dto.captchaId, dto.captchaCode);
+    }
 
     const user = await this.prisma.user.findUnique({ where: { username: dto.username } });
 
@@ -135,12 +149,17 @@ export class AuthService {
     const email = dto.email?.trim().toLowerCase();
     const account = email || username?.toLowerCase();
     const ip = this.extractIp(requestMeta);
-    await this.riskRuntimeService.preCheck({ scene: 'forgotPassword', ip, account });
+    const riskDecision = await this.riskRuntimeService.preCheck({ scene: 'forgotPassword', ip, account });
+    if (riskDecision.needCaptcha) {
+      this.assertCaptcha('forgotPassword', dto.captchaId, dto.captchaCode);
+    }
 
     if (!username && !email) {
       await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: false });
       return { ok: false, message: '请填写用户名或邮箱' };
     }
+
+    const genericMessage = '如果账号信息存在且已绑定邮箱，系统会发送重置邮件';
 
     const where = username && email
       ? {
@@ -167,8 +186,8 @@ export class AuthService {
     });
 
     if (!user) {
-      await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: false });
-      return { ok: false, message: '用户名或邮箱不存在' };
+      await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: true });
+      return { ok: true, message: genericMessage };
     }
 
     const configOwner = await this.prisma.user.findFirst({
@@ -220,8 +239,8 @@ export class AuthService {
 
     const to = targetMailbox?.emailAddress;
     if (!to) {
-      await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: false });
-      return { ok: false, message: '用户未配置邮箱，请先完成邮箱配置' };
+      await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: true });
+      return { ok: true, message: genericMessage };
     }
 
     await transporter.sendMail({
@@ -232,7 +251,18 @@ export class AuthService {
     });
 
     await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: true });
-    return { ok: true, message: '重置邮件已发送' };
+    return { ok: true, message: genericMessage };
+  }
+
+  private assertCaptcha(scene: 'login' | 'register' | 'forgotPassword', captchaId?: string, captchaCode?: string) {
+    if (!captchaId || !captchaCode) {
+      throw new HttpException({ message: '请先完成验证码', needCaptcha: true, scene }, HttpStatus.PRECONDITION_REQUIRED);
+    }
+
+    const ok = this.riskCaptchaService.verifyCaptcha(scene, captchaId, captchaCode);
+    if (!ok) {
+      throw new HttpException({ message: '验证码错误或已过期', needCaptcha: true, scene }, HttpStatus.UNAUTHORIZED);
+    }
   }
 
   private generateTempPassword(length = 10) {

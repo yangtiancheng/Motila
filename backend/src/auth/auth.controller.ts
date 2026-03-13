@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentRequestMeta, type RequestMeta } from '../common/current-request-meta.decorator';
 import { CurrentUser } from '../common/current-user.decorator';
 import { JwtAuthGuard } from '../common/jwt-auth.guard';
@@ -15,6 +15,11 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly rbacService: RbacService,
   ) {}
+
+  @Get('captcha')
+  getCaptcha(@Query('scene') scene?: 'login' | 'register' | 'forgotPassword') {
+    return this.authService.getCaptcha(scene ?? 'login');
+  }
 
   @Post('register')
   register(@Body() dto: RegisterDto, @CurrentRequestMeta() requestMeta: RequestMeta) {

@@ -11,4 +11,14 @@ export class ForgotPasswordDto {
   @ValidateIf((o) => !o.username)
   @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 128)
+  captchaId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 16)
+  captchaCode?: string;
 }
