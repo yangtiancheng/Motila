@@ -2685,10 +2685,34 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
     }
   };
 
-  const sceneCards: Array<{ key: RiskSceneCode; title: string }> = [
-    { key: 'login', title: '登录' },
-    { key: 'register', title: '注册' },
-    { key: 'forgotPassword', title: '忘记密码' },
+  const sceneCards: Array<{
+    key: RiskSceneCode;
+    title: string;
+    summary: string;
+    tips: string[];
+    recommended: string;
+  }> = [
+    {
+      key: 'login',
+      title: '登录风控',
+      summary: '用于拦截账号撞库、密码爆破、异常高频登录请求。适合控制同一 IP 或账号的短时间重复登录。',
+      tips: ['登录失败较多时，优先提高验证码触发灵敏度。', '封禁阈值不要低于验证码阈值，避免正常用户被直接封死。'],
+      recommended: '建议：每分钟 20 次、每小时 100 次、失败 5 次触发验证码、失败 20 次封禁。',
+    },
+    {
+      key: 'register',
+      title: '注册风控',
+      summary: '用于防止恶意批量注册、脚本刷号、频繁提交注册接口。适合对注册频率做更严格限制。',
+      tips: ['注册通常比登录更敏感，建议阈值设置更低。', '如近期遭遇批量注册，可先拉高黑名单和封禁时长。'],
+      recommended: '建议：每分钟 5 次、每小时 20 次、失败 2 次触发验证码、失败 10 次封禁。',
+    },
+    {
+      key: 'forgotPassword',
+      title: '忘记密码风控',
+      summary: '用于防止恶意刷找回密码、频繁发送重置邮件，降低邮箱轰炸和账号探测风险。',
+      tips: ['忘记密码建议加上每日阈值，防止长时间慢刷。', '该场景对用户体验敏感，Retry-After 提示建议写得更长一些。'],
+      recommended: '建议：每分钟 1 次、每小时 5 次、每天 10 次、失败 3 次触发验证码、失败 10 次封禁。',
+    },
   ];
 
   return (
@@ -2704,81 +2728,208 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
           </Space>
         }
       >
-        <Form form={form} layout="vertical" initialValues={{
-          enabled: true,
-          degradePolicy: 'ALLOW_WITH_CAPTCHA',
-          scenes: DEFAULT_RISK_CONTROL_CONTENT.scenes,
-        }}>
-          <Space size={24} wrap>
-            <Form.Item label="总开关" name="enabled" valuePropName="checked">
-              <Switch disabled={!canUpdate} />
-            </Form.Item>
-            <Form.Item label="Redis 不可用时策略" name="degradePolicy">
-              <Select
-                disabled={!canUpdate}
-                style={{ width: 240 }}
-                options={[
-                  { label: '允许请求并强制验证码', value: 'ALLOW_WITH_CAPTCHA' },
-                  { label: '直接阻断请求', value: 'BLOCK_REQUESTS' },
-                ]}
-              />
-            </Form.Item>
-          </Space>
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Card type="inner" title="操作说明" size="small">
+            <Typography.Paragraph style={{ marginBottom: 8 }}>
+              这页用于配置 <strong>登录、注册、忘记密码</strong> 三类接口的风控规则。推荐操作顺序：
+              <strong>先改草稿 → 再保存草稿 → 确认无误后发布</strong>。
+            </Typography.Paragraph>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+              字段理解：阈值控制请求频率；“失败几次触发验证码”表示进入更严格校验；“失败几次封禁”表示直接限制该 IP/账号继续请求；
+              Retry-After 会影响前端/客户端提示的等待秒数。
+            </Typography.Paragraph>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              黑白名单优先级最高：白名单可跳过常规限制，黑名单会直接拦截。修改完成后记得点击“发布”，只保存草稿不会立即生效。
+            </Typography.Paragraph>
+          </Card>
 
-          {sceneCards.map((scene) => (
-            <Card key={scene.key} type="inner" title={scene.title} style={{ marginBottom: 16 }}>
+          <Form form={form} layout="vertical" initialValues={{
+            enabled: true,
+            degradePolicy: 'ALLOW_WITH_CAPTCHA',
+            scenes: DEFAULT_RISK_CONTROL_CONTENT.scenes,
+          }}>
+            <Card type="inner" title="全局策略" style={{ marginBottom: 16 }}>
               <Space size={24} wrap align="start">
-                <Form.Item label="启用" name={['scenes', scene.key, 'enabled']} valuePropName="checked">
+                <Form.Item
+                  label="总开关"
+                  name="enabled"
+                  valuePropName="checked"
+                  extra="关闭后，登录/注册/忘记密码三类风控规则都不会生效。"
+                >
                   <Switch disabled={!canUpdate} />
                 </Form.Item>
-                <Form.Item label="每分钟" name={['scenes', scene.key, 'thresholds', 'perMinute']}>
-                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 120 }} />
-                </Form.Item>
-                <Form.Item label="每小时" name={['scenes', scene.key, 'thresholds', 'perHour']}>
-                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 120 }} />
-                </Form.Item>
-                <Form.Item label="每天" name={['scenes', scene.key, 'thresholds', 'perDay']}>
-                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 120 }} />
-                </Form.Item>
-                <Form.Item label="失败几次触发验证码" name={['scenes', scene.key, 'captchaAfterFailures']}>
-                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 140 }} />
-                </Form.Item>
-                <Form.Item label="验证码 TTL(秒)" name={['scenes', scene.key, 'captchaTtlSec']}>
-                  <Input type="number" min={60} disabled={!canUpdate} style={{ width: 140 }} />
-                </Form.Item>
-                <Form.Item label="失败几次封禁" name={['scenes', scene.key, 'blockAfterFailures']}>
-                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 140 }} />
-                </Form.Item>
-                <Form.Item label="封禁 TTL(秒)" name={['scenes', scene.key, 'blockTtlSec']}>
-                  <Input type="number" min={60} disabled={!canUpdate} style={{ width: 140 }} />
-                </Form.Item>
-                <Form.Item label="Retry-After(秒)" name={['scenes', scene.key, 'retryAfterSec']}>
-                  <Input type="number" min={1} disabled={!canUpdate} style={{ width: 140 }} />
+                <Form.Item
+                  label="Redis 不可用时策略"
+                  name="degradePolicy"
+                  extra="ALLOW_WITH_CAPTCHA 表示尽量放行但走更严格校验；BLOCK_REQUESTS 表示 Redis 异常时直接拒绝请求。"
+                >
+                  <Select
+                    disabled={!canUpdate}
+                    style={{ width: 320 }}
+                    options={[
+                      { label: '允许请求并强制验证码', value: 'ALLOW_WITH_CAPTCHA' },
+                      { label: '直接阻断请求', value: 'BLOCK_REQUESTS' },
+                    ]}
+                  />
                 </Form.Item>
               </Space>
             </Card>
-          ))}
 
-          <Card type="inner" title="白名单 / 黑名单">
-            <Space size={16} align="start" wrap style={{ width: '100%' }}>
-              <Form.Item label="IP 白名单" name="whitelistIps" style={{ minWidth: 260, flex: 1 }}>
-                <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个 IP" />
-              </Form.Item>
-              <Form.Item label="账号白名单" name="whitelistAccounts" style={{ minWidth: 260, flex: 1 }}>
-                <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个账号" />
-              </Form.Item>
-              <Form.Item label="IP 黑名单" name="blacklistIps" style={{ minWidth: 260, flex: 1 }}>
-                <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个 IP" />
-              </Form.Item>
-              <Form.Item label="账号黑名单" name="blacklistAccounts" style={{ minWidth: 260, flex: 1 }}>
-                <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个账号" />
-              </Form.Item>
-            </Space>
-          </Card>
-        </Form>
+            {sceneCards.map((scene) => (
+              <Card
+                key={scene.key}
+                type="inner"
+                title={scene.title}
+                style={{ marginBottom: 16 }}
+                extra={<Tag color="blue">场景说明已补充</Tag>}
+              >
+                <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                  <Card size="small" style={{ background: '#fafafa' }}>
+                    <Typography.Paragraph style={{ marginBottom: 8 }}>
+                      <strong>这块是干啥的：</strong>{scene.summary}
+                    </Typography.Paragraph>
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                      <strong>推荐起步值：</strong>{scene.recommended}
+                    </Typography.Paragraph>
+                    <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(0,0,0,0.65)' }}>
+                      {scene.tips.map((tip) => (
+                        <li key={tip}>{tip}</li>
+                      ))}
+                    </ul>
+                  </Card>
+
+                  <Space size={24} wrap align="start">
+                    <Form.Item
+                      label="启用"
+                      name={['scenes', scene.key, 'enabled']}
+                      valuePropName="checked"
+                      extra="关闭后，该场景不参与风控判断。"
+                    >
+                      <Switch disabled={!canUpdate} />
+                    </Form.Item>
+                    <Form.Item
+                      label="每分钟阈值"
+                      name={['scenes', scene.key, 'thresholds', 'perMinute']}
+                      extra="限制单 IP/账号 1 分钟内的请求次数。"
+                    >
+                      <Input type="number" min={1} disabled={!canUpdate} style={{ width: 140 }} />
+                    </Form.Item>
+                    <Form.Item
+                      label="每小时阈值"
+                      name={['scenes', scene.key, 'thresholds', 'perHour']}
+                      extra="限制单 IP/账号 1 小时内的请求次数。"
+                    >
+                      <Input type="number" min={1} disabled={!canUpdate} style={{ width: 140 }} />
+                    </Form.Item>
+                    <Form.Item
+                      label="每天阈值"
+                      name={['scenes', scene.key, 'thresholds', 'perDay']}
+                      extra="适合忘记密码这类需要防慢速刷接口的场景。"
+                    >
+                      <Input type="number" min={1} disabled={!canUpdate} style={{ width: 140 }} />
+                    </Form.Item>
+                    <Form.Item
+                      label="失败几次触发验证码"
+                      name={['scenes', scene.key, 'captchaAfterFailures']}
+                      extra="达到该次数后，请求会进入更严格的人机校验。"
+                    >
+                      <Input type="number" min={1} disabled={!canUpdate} style={{ width: 160 }} />
+                    </Form.Item>
+                    <Form.Item
+                      label="验证码有效期(秒)"
+                      name={['scenes', scene.key, 'captchaTtlSec']}
+                      extra="验证码触发后，在这段时间内保持有效。"
+                    >
+                      <Input type="number" min={60} disabled={!canUpdate} style={{ width: 160 }} />
+                    </Form.Item>
+                    <Form.Item
+                      label="失败几次封禁"
+                      name={['scenes', scene.key, 'blockAfterFailures']}
+                      extra="达到该次数后，将直接拒绝请求。"
+                    >
+                      <Input type="number" min={1} disabled={!canUpdate} style={{ width: 160 }} />
+                    </Form.Item>
+                    <Form.Item
+                      label="封禁时长(秒)"
+                      name={['scenes', scene.key, 'blockTtlSec']}
+                      extra="命中封禁后，需要等待多久才能再次请求。"
+                    >
+                      <Input type="number" min={60} disabled={!canUpdate} style={{ width: 160 }} />
+                    </Form.Item>
+                    <Form.Item
+                      label="Retry-After(秒)"
+                      name={['scenes', scene.key, 'retryAfterSec']}
+                      extra="返回给前端或客户端的建议等待时间。"
+                    >
+                      <Input type="number" min={1} disabled={!canUpdate} style={{ width: 160 }} />
+                    </Form.Item>
+                  </Space>
+                </Space>
+              </Card>
+            ))}
+
+            <Card type="inner" title="黑白名单说明与维护">
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                白名单适合放可信办公 IP、内部测试账号，避免误伤；黑名单适合放已确认的恶意 IP 或攻击账号。每行一个值，保存后发布才会生效。
+              </Typography.Paragraph>
+              <Space size={16} align="start" wrap style={{ width: '100%' }}>
+                <Form.Item
+                  label="IP 白名单"
+                  name="whitelistIps"
+                  style={{ minWidth: 260, flex: 1 }}
+                  extra="这些 IP 默认跳过常规风控校验。"
+                >
+                  <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个 IP，如 127.0.0.1" />
+                </Form.Item>
+                <Form.Item
+                  label="账号白名单"
+                  name="whitelistAccounts"
+                  style={{ minWidth: 260, flex: 1 }}
+                  extra="这些账号默认跳过常规风控校验。"
+                >
+                  <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个账号，如 admin" />
+                </Form.Item>
+                <Form.Item
+                  label="IP 黑名单"
+                  name="blacklistIps"
+                  style={{ minWidth: 260, flex: 1 }}
+                  extra="这些 IP 会被直接拦截。"
+                >
+                  <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个 IP，如 10.0.0.8" />
+                </Form.Item>
+                <Form.Item
+                  label="账号黑名单"
+                  name="blacklistAccounts"
+                  style={{ minWidth: 260, flex: 1 }}
+                  extra="这些账号会被直接拦截。"
+                >
+                  <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个账号，如 test-bot" />
+                </Form.Item>
+              </Space>
+            </Card>
+
+            <Card type="inner" title="操作区">
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                保存草稿仅保存当前编辑内容，不会立刻影响线上；点击“发布生效”后，当前草稿才会成为正式风控配置。
+              </Typography.Paragraph>
+              <Space wrap>
+                <Button onClick={() => { void loadConfig(); void loadVersions(); }}>刷新配置</Button>
+                <Button type="default" onClick={() => void saveDraft()} loading={saving} disabled={!canUpdate}>
+                  保存草稿
+                </Button>
+                <Button type="primary" onClick={() => void publish()} loading={publishing} disabled={!canUpdate}>
+                  发布生效
+                </Button>
+              </Space>
+            </Card>
+          </Form>
+        </Space>
       </Card>
 
       <Card title={`版本列表${config ? `（当前生效：v${config.version}）` : ''}`} loading={versionsLoading}>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+          “保存草稿”只会更新草稿版本；“发布”后才会成为线上生效配置；如发布后有问题，可在下方选择历史版本回滚。
+        </Typography.Paragraph>
         <Table<RiskControlVersionItem>
           rowKey="id"
           dataSource={versions}
