@@ -14,11 +14,17 @@ type RiskRecordInput = RiskCheckInput & {
   success: boolean;
 };
 
+type RiskDecision = {
+  needCaptcha: boolean;
+};
+
 @Injectable()
 export class RiskRuntimeService {
   private readonly logger = new Logger(RiskRuntimeService.name);
   private readonly redisEnabled: boolean;
   private readonly redis: Redis | null;
+  private readonly memoryCounters = new Map<string, { value: number; expiresAt: number }>();
+  private readonly memoryBlocks = new Map<string, number>();
 
   constructor(private readonly riskControlService: RiskControlService) {
     const redisUrl = process.env.REDIS_URL?.trim();
@@ -44,50 +50,66 @@ export class RiskRuntimeService {
     }
   }
 
-  async preCheck(input: RiskCheckInput) {
+  async preCheck(input: RiskCheckInput): Promise<RiskDecision> {
     const config = await this.riskControlService.getConfig();
     const sceneConfig = config.content.scenes[input.scene];
 
     if (!config.enabled || !config.content.enabled || !sceneConfig?.enabled) {
-      return;
+      return { needCaptcha: false };
     }
 
     const account = input.account?.trim().toLowerCase();
     const ip = input.ip?.trim();
 
     if (config.content.whitelist.ips.includes(ip || '') || config.content.whitelist.accounts.includes(account || '')) {
-      return;
+      return { needCaptcha: false };
     }
 
     if (config.content.blacklist.ips.includes(ip || '') || config.content.blacklist.accounts.includes(account || '')) {
       throw new HttpException('请求过于频繁，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    const redis = await this.getRedisOrHandle(config.content.degradePolicy.redisUnavailable);
-    if (!redis) return;
-
     const keys = this.buildKeys(input.scene, ip, account);
+    const storage = await this.getStorage(config.content.degradePolicy.redisUnavailable);
 
-    for (const key of [keys.blockIp, keys.blockAccount]) {
-      if (!key) continue;
-      const ttl = await redis.ttl(key);
-      if (ttl > 0) {
-        throw new HttpException(`请求过于频繁，请在 ${ttl} 秒后再试`, HttpStatus.TOO_MANY_REQUESTS);
-      }
+    const blockIpTtl = await this.readBlockTtl(storage, keys.blockIp);
+    const blockAccountTtl = await this.readBlockTtl(storage, keys.blockAccount);
+    const blockTtl = Math.max(blockIpTtl, blockAccountTtl);
+    if (blockTtl > 0) {
+      throw new HttpException(`请求过于频繁，请在 ${blockTtl} 秒后再试`, HttpStatus.TOO_MANY_REQUESTS);
     }
 
-    await this.bumpCounter(redis, keys.reqIpMinute ?? undefined, 60);
-    await this.bumpCounter(redis, keys.reqAccountMinute ?? undefined, 60);
+    await this.bumpCounter(storage, keys.reqIpMinute, 60);
+    await this.bumpCounter(storage, keys.reqAccountMinute, 60);
+    await this.bumpCounter(storage, keys.reqIpHour, 3600);
+    await this.bumpCounter(storage, keys.reqAccountHour, 3600);
+    await this.bumpCounter(storage, keys.reqIpDay, 86400);
+    await this.bumpCounter(storage, keys.reqAccountDay, 86400);
 
-    const ipMinute = keys.reqIpMinute ? Number((await redis.get(keys.reqIpMinute)) || '0') : 0;
-    const accountMinute = keys.reqAccountMinute ? Number((await redis.get(keys.reqAccountMinute)) || '0') : 0;
+    const ipMinute = await this.readCounter(storage, keys.reqIpMinute);
+    const accountMinute = await this.readCounter(storage, keys.reqAccountMinute);
+    const ipHour = await this.readCounter(storage, keys.reqIpHour);
+    const accountHour = await this.readCounter(storage, keys.reqAccountHour);
+    const ipDay = await this.readCounter(storage, keys.reqIpDay);
+    const accountDay = await this.readCounter(storage, keys.reqAccountDay);
+    const ipFails = await this.readCounter(storage, keys.failIpHour);
+    const accountFails = await this.readCounter(storage, keys.failAccountHour);
 
-    if ((sceneConfig.thresholds.perMinute && ipMinute > sceneConfig.thresholds.perMinute) ||
-        (sceneConfig.thresholds.perMinute && accountMinute > sceneConfig.thresholds.perMinute)) {
-      if (keys.blockIp) await redis.set(keys.blockIp, '1', 'EX', sceneConfig.retryAfterSec);
-      if (keys.blockAccount) await redis.set(keys.blockAccount, '1', 'EX', sceneConfig.retryAfterSec);
+    const reachLimit =
+      this.hitThreshold(ipMinute, accountMinute, sceneConfig.thresholds.perMinute) ||
+      this.hitThreshold(ipHour, accountHour, sceneConfig.thresholds.perHour) ||
+      this.hitThreshold(ipDay, accountDay, sceneConfig.thresholds.perDay);
+
+    if (reachLimit) {
+      if (keys.blockIp) await this.setBlock(storage, keys.blockIp, sceneConfig.retryAfterSec);
+      if (keys.blockAccount) await this.setBlock(storage, keys.blockAccount, sceneConfig.retryAfterSec);
       throw new HttpException(`请求过于频繁，请在 ${sceneConfig.retryAfterSec} 秒后再试`, HttpStatus.TOO_MANY_REQUESTS);
     }
+
+    const needCaptcha = sceneConfig.captchaAfterFailures > 0
+      && (ipFails >= sceneConfig.captchaAfterFailures || accountFails >= sceneConfig.captchaAfterFailures);
+
+    return { needCaptcha };
   }
 
   async recordResult(input: RiskRecordInput) {
@@ -100,62 +122,123 @@ export class RiskRuntimeService {
 
     const account = input.account?.trim().toLowerCase();
     const ip = input.ip?.trim();
-    const redis = await this.getRedisOrHandle(config.content.degradePolicy.redisUnavailable, false);
-    if (!redis) return;
-
+    const storage = await this.getStorage(config.content.degradePolicy.redisUnavailable, false);
     const keys = this.buildKeys(input.scene, ip, account);
 
     if (input.success) {
       for (const key of [keys.failIpHour, keys.failAccountHour, keys.blockIp, keys.blockAccount]) {
-        if (key) await redis.del(key);
+        if (key) await this.deleteKey(storage, key);
       }
       return;
     }
 
-    await this.bumpCounter(redis, keys.failIpHour ?? undefined, 3600);
-    await this.bumpCounter(redis, keys.failAccountHour ?? undefined, 3600);
+    await this.bumpCounter(storage, keys.failIpHour, 3600);
+    await this.bumpCounter(storage, keys.failAccountHour, 3600);
 
-    const ipFails = keys.failIpHour ? Number((await redis.get(keys.failIpHour)) || '0') : 0;
-    const accountFails = keys.failAccountHour ? Number((await redis.get(keys.failAccountHour)) || '0') : 0;
+    const ipFails = await this.readCounter(storage, keys.failIpHour);
+    const accountFails = await this.readCounter(storage, keys.failAccountHour);
 
     if (sceneConfig.blockAfterFailures > 0) {
       if (keys.blockIp && ipFails >= sceneConfig.blockAfterFailures) {
-        await redis.set(keys.blockIp, '1', 'EX', sceneConfig.blockTtlSec);
+        await this.setBlock(storage, keys.blockIp, sceneConfig.blockTtlSec);
       }
       if (keys.blockAccount && accountFails >= sceneConfig.blockAfterFailures) {
-        await redis.set(keys.blockAccount, '1', 'EX', sceneConfig.blockTtlSec);
+        await this.setBlock(storage, keys.blockAccount, sceneConfig.blockTtlSec);
       }
     }
   }
 
-  private async getRedisOrHandle(policy: 'ALLOW_WITH_CAPTCHA' | 'BLOCK_REQUESTS', throwOnBlock = true) {
+  private hitThreshold(ipValue: number, accountValue: number, limit?: number) {
+    return !!limit && (ipValue > limit || accountValue > limit);
+  }
+
+  private async getStorage(policy: 'ALLOW_WITH_CAPTCHA' | 'BLOCK_REQUESTS', throwOnBlock = true) {
     if (!this.redisEnabled || !this.redis) {
       if (policy === 'BLOCK_REQUESTS' && throwOnBlock) {
         throw new ServiceUnavailableException('风控服务不可用，请稍后再试');
       }
-      return null;
+      return { kind: 'memory' as const };
     }
 
     try {
       if (this.redis.status !== 'ready') {
         await this.redis.connect();
       }
-      return this.redis;
+      return { kind: 'redis' as const, client: this.redis };
     } catch (error) {
       this.logger.warn(`Redis unavailable: ${error instanceof Error ? error.message : String(error)}`);
       if (policy === 'BLOCK_REQUESTS' && throwOnBlock) {
         throw new ServiceUnavailableException('风控服务不可用，请稍后再试');
       }
-      return null;
+      return { kind: 'memory' as const };
     }
   }
 
-  private async bumpCounter(redis: Redis, key?: string, ttlSec = 60) {
+  private async bumpCounter(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key?: string | null, ttlSec = 60) {
     if (!key) return;
-    const value = await redis.incr(key);
-    if (value === 1) {
-      await redis.expire(key, ttlSec);
+    if (storage.kind === 'redis') {
+      const value = await storage.client.incr(key);
+      if (value === 1) {
+        await storage.client.expire(key, ttlSec);
+      }
+      return;
     }
+
+    const current = this.memoryCounters.get(key);
+    const now = Date.now();
+    if (!current || current.expiresAt <= now) {
+      this.memoryCounters.set(key, { value: 1, expiresAt: now + ttlSec * 1000 });
+      return;
+    }
+    current.value += 1;
+  }
+
+  private async readCounter(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key?: string | null) {
+    if (!key) return 0;
+    if (storage.kind === 'redis') {
+      return Number((await storage.client.get(key)) || '0');
+    }
+
+    const current = this.memoryCounters.get(key);
+    if (!current) return 0;
+    if (current.expiresAt <= Date.now()) {
+      this.memoryCounters.delete(key);
+      return 0;
+    }
+    return current.value;
+  }
+
+  private async setBlock(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key: string, ttlSec: number) {
+    if (storage.kind === 'redis') {
+      await storage.client.set(key, '1', 'EX', ttlSec);
+      return;
+    }
+    this.memoryBlocks.set(key, Date.now() + ttlSec * 1000);
+  }
+
+  private async readBlockTtl(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key?: string | null) {
+    if (!key) return 0;
+    if (storage.kind === 'redis') {
+      const ttl = await storage.client.ttl(key);
+      return ttl > 0 ? ttl : 0;
+    }
+    const expiresAt = this.memoryBlocks.get(key);
+    if (!expiresAt) return 0;
+    const ttl = Math.ceil((expiresAt - Date.now()) / 1000);
+    if (ttl <= 0) {
+      this.memoryBlocks.delete(key);
+      return 0;
+    }
+    return ttl;
+  }
+
+  private async deleteKey(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key: string) {
+    if (storage.kind === 'redis') {
+      await storage.client.del(key);
+      return;
+    }
+    this.memoryCounters.delete(key);
+    this.memoryBlocks.delete(key);
   }
 
   private buildKeys(scene: RiskScene, ip?: string | null, account?: string | null) {
@@ -166,6 +249,10 @@ export class RiskRuntimeService {
     return {
       reqIpMinute: safeIp ? `risk:req:${safeScene}:ip:${safeIp}:m1` : null,
       reqAccountMinute: safeAccount ? `risk:req:${safeScene}:acct:${safeAccount}:m1` : null,
+      reqIpHour: safeIp ? `risk:req:${safeScene}:ip:${safeIp}:h1` : null,
+      reqAccountHour: safeAccount ? `risk:req:${safeScene}:acct:${safeAccount}:h1` : null,
+      reqIpDay: safeIp ? `risk:req:${safeScene}:ip:${safeIp}:d1` : null,
+      reqAccountDay: safeAccount ? `risk:req:${safeScene}:acct:${safeAccount}:d1` : null,
       failIpHour: safeIp ? `risk:fail:${safeScene}:ip:${safeIp}:h1` : null,
       failAccountHour: safeAccount ? `risk:fail:${safeScene}:acct:${safeAccount}:h1` : null,
       blockIp: safeIp ? `risk:block:${safeScene}:ip:${safeIp}` : null,

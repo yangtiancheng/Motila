@@ -13,13 +13,18 @@
 
 ---
 
-## 2. 当前已实现功能（截至 2026-03-13）
+## 2. 当前已实现功能（截至 2026-03-14）
 
 ### 2.1 认证与账号
 - 登录 / 注册 / JWT 鉴权
 - `/auth/me` 获取当前用户信息
 - 修改本人密码
-- 忘记密码（邮箱找回）：`POST /auth/forgot-password`，支持用户名或邮箱提交；存在则发送“重置邮件已发送”，不存在明确提示
+- 忘记密码（邮箱找回）：`POST /auth/forgot-password`，支持用户名或邮箱提交；**不再暴露账号是否存在**
+- 新增图形验证码接口：`GET /auth/captcha?scene=login|register|forgotPassword`
+- 登录 / 注册 / 忘记密码已接入真实验证码闭环：
+  - 风控命中后后端返回 `needCaptcha`
+  - 前端自动展示验证码输入区与“换一张”操作
+  - 验证码校验通过后再继续提交认证请求
 
 ### 2.2 用户管理
 - 用户列表、新建、编辑、删除
@@ -40,6 +45,7 @@
   - `POST /auth/register`
   - `POST /auth/forgot-password`
 - Redis 可用时支持按 IP / 账号进行频率限制与失败封禁
+- Redis 不可用且降级策略为 `ALLOW_WITH_CAPTCHA` 时，开发环境会回退到内存计数，避免风控功能完全失效
 
 ### 2.4 邮箱配置（个人信息页）
 - 支持 QQ / 163 邮箱配置（SMTP/IMAP）
@@ -148,6 +154,8 @@ npx prisma migrate dev --name init_sqlite
 cd ..
 ```
 
+> 若历史 migration 与本地 `dev.db` 存在 drift，当前可先使用 `npx prisma db push` 完成开发验证，后续再统一修复迁移链路。
+
 ### 5.3 启动
 
 **方式 A（推荐）**
@@ -198,7 +206,9 @@ pm2 save
 
 - `GET /health`：返回 `{"ok":true}`
 - 前端首页：HTTP `200`
-- 未登录访问 `GET /users`：HTTP `401 Unauthorized`（鉴权生效）
+- 前后端生产构建：通过
+- `GET /auth/captcha?scene=login`：可返回验证码数据结构
+- 风控命中验证码场景后，前端会自动出现验证码输入区与“换一张”按钮
 
 ---
 
