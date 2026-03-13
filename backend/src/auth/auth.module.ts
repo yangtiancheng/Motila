@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { EmailConfigModule } from '../email-config/email-config.module';
+import { RiskControlModule } from '../risk-control/risk-control.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
@@ -13,6 +14,7 @@ import { JwtStrategy } from './jwt.strategy';
     PrismaModule,
     RbacModule,
     EmailConfigModule,
+    RiskControlModule,
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET ?? 'motila-dev-secret-change-me',

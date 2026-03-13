@@ -40,6 +40,14 @@ const DEFAULT_MODULES: SeedModuleDef[] = [
     dependencies: ['core', 'audit'],
   },
   {
+    code: 'risk-control',
+    name: '风控配置',
+    description: '登录、注册、忘记密码等风控策略配置中心',
+    sortOrder: 30,
+    status: ModuleLifecycleStatus.ENABLED,
+    dependencies: ['core', 'audit'],
+  },
+  {
     code: 'project',
     name: '项目管理',
     description: '项目台账与进度管理（预留模块）',

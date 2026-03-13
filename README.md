@@ -13,7 +13,7 @@
 
 ---
 
-## 2. 当前已实现功能（截至 2026-03-11）
+## 2. 当前已实现功能（截至 2026-03-13）
 
 ### 2.1 认证与账号
 - 登录 / 注册 / JWT 鉴权
@@ -30,6 +30,16 @@
   - 点击头像区域直接上传/替换
   - 右上角叉号一键清除
   - 展示优先级：`avatarImage` > `avatarUrl`
+
+### 2.3 风控配置中心（新增）
+- 新增“配置 -> 风控配置”页面
+- 支持维护登录 / 注册 / 忘记密码三类场景策略
+- 支持配置：总开关、Redis 降级策略、场景阈值、黑白名单、版本发布与回滚
+- 后端 auth 接口已接入风控运行层：
+  - `POST /auth/login`
+  - `POST /auth/register`
+  - `POST /auth/forgot-password`
+- Redis 可用时支持按 IP / 账号进行频率限制与失败封禁
 
 ### 2.4 邮箱配置（个人信息页）
 - 支持 QQ / 163 邮箱配置（SMTP/IMAP）
@@ -107,6 +117,8 @@ Motila/
 - 后端环境变量建议：
   - `JWT_SECRET`：JWT 签名密钥
   - `EMAIL_CONFIG_SECRET`：邮箱授权码加解密密钥（未设置时回退到 `JWT_SECRET`）
+  - `REDIS_URL`：Redis 连接串（推荐）
+  - 或使用 `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` / `REDIS_DB`
 
 安装 PM2（可选）：
 

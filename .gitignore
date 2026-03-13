@@ -26,3 +26,5 @@ Thumbs.db
 # Local databases
 backend/dev.db
 backend/test-automation.db
+
+dev.db

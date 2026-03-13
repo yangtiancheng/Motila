@@ -117,6 +117,16 @@ const menuConfigRaw: MenuItemConfig[] = [
     sortOrder: 50,
   },
   {
+    key: 'risk-control',
+    label: '风控配置',
+    path: '/settings/risk-control',
+    icon: <SafetyCertificateOutlined />,
+    requiredPermissions: ['risk.read'],
+    moduleCode: 'risk-control',
+    parentKey: 'settings',
+    sortOrder: 55,
+  },
+  {
     key: 'audit-logs',
     label: '审计日志',
     path: '/audit-logs',

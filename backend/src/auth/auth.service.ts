@@ -7,9 +7,11 @@ import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import * as nodemailer from 'nodemailer';
+import type { RequestMeta } from '../common/current-request-meta.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { RbacService } from '../rbac/rbac.service';
 import { EmailConfigService } from '../email-config/email-config.service';
+import { RiskRuntimeService } from '../risk-control/risk-runtime.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -21,58 +23,81 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly rbacService: RbacService,
     private readonly emailConfigService: EmailConfigService,
+    private readonly riskRuntimeService: RiskRuntimeService,
   ) {}
 
-  async register(dto: RegisterDto) {
-    const existingByUsername = await this.prisma.user.findUnique({ where: { username: dto.username } });
-    if (existingByUsername) {
-      throw new ConflictException('用户名已存在');
+  async register(dto: RegisterDto, requestMeta?: RequestMeta) {
+    const account = dto.email?.trim().toLowerCase() || dto.username?.trim().toLowerCase();
+    const ip = this.extractIp(requestMeta);
+    await this.riskRuntimeService.preCheck({ scene: 'register', ip, account });
+
+    try {
+      const existingByUsername = await this.prisma.user.findUnique({ where: { username: dto.username } });
+      if (existingByUsername) {
+        await this.riskRuntimeService.recordResult({ scene: 'register', ip, account, success: false });
+        throw new ConflictException('用户名已存在');
+      }
+
+      const existingByEmail = await this.prisma.user.findUnique({ where: { email: dto.email } });
+      if (existingByEmail) {
+        await this.riskRuntimeService.recordResult({ scene: 'register', ip, account, success: false });
+        throw new ConflictException('邮箱已注册');
+      }
+
+      const passwordHash = await bcrypt.hash(dto.password, 10);
+      const user = await this.prisma.user.create({
+        data: {
+          username: dto.username,
+          email: dto.email,
+          name: dto.name,
+          passwordHash,
+          role: UserRole.USER,
+        },
+        select: { id: true, username: true, email: true, name: true, avatarUrl: true, avatarImage: true, role: true },
+      });
+
+      const access = await this.rbacService.buildAccessContext(user.id);
+      const token = await this.signToken(user.id, user.email, user.role, access);
+      await this.riskRuntimeService.recordResult({ scene: 'register', ip, account, success: true });
+
+      return {
+        token,
+        user: {
+          ...user,
+          roles: access.roleCodes,
+          permissions: access.permissions,
+          modules: access.modules,
+        },
+      };
+    } catch (error) {
+      if (!(error instanceof ConflictException)) {
+        await this.riskRuntimeService.recordResult({ scene: 'register', ip, account, success: false });
+      }
+      throw error;
     }
-
-    const existingByEmail = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existingByEmail) {
-      throw new ConflictException('邮箱已注册');
-    }
-
-    const passwordHash = await bcrypt.hash(dto.password, 10);
-    const user = await this.prisma.user.create({
-      data: {
-        username: dto.username,
-        email: dto.email,
-        name: dto.name,
-        passwordHash,
-        role: UserRole.USER,
-      },
-      select: { id: true, username: true, email: true, name: true, avatarUrl: true, avatarImage: true, role: true },
-    });
-
-    const access = await this.rbacService.buildAccessContext(user.id);
-    const token = await this.signToken(user.id, user.email, user.role, access);
-    return {
-      token,
-      user: {
-        ...user,
-        roles: access.roleCodes,
-        permissions: access.permissions,
-        modules: access.modules,
-      },
-    };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, requestMeta?: RequestMeta) {
+    const account = dto.username?.trim().toLowerCase();
+    const ip = this.extractIp(requestMeta);
+    await this.riskRuntimeService.preCheck({ scene: 'login', ip, account });
+
     const user = await this.prisma.user.findUnique({ where: { username: dto.username } });
 
     if (!user) {
+      await this.riskRuntimeService.recordResult({ scene: 'login', ip, account, success: false });
       throw new UnauthorizedException('用户名或密码错误');
     }
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) {
+      await this.riskRuntimeService.recordResult({ scene: 'login', ip, account, success: false });
       throw new UnauthorizedException('用户名或密码错误');
     }
 
     const access = await this.rbacService.buildAccessContext(user.id);
     const token = await this.signToken(user.id, user.email, user.role, access);
+    await this.riskRuntimeService.recordResult({ scene: 'login', ip, account, success: true });
     return {
       token,
       user: {
@@ -105,11 +130,15 @@ export class AuthService {
     });
   }
 
-  async forgotPassword(dto: ForgotPasswordDto) {
+  async forgotPassword(dto: ForgotPasswordDto, requestMeta?: RequestMeta) {
     const username = dto.username?.trim();
     const email = dto.email?.trim().toLowerCase();
+    const account = email || username?.toLowerCase();
+    const ip = this.extractIp(requestMeta);
+    await this.riskRuntimeService.preCheck({ scene: 'forgotPassword', ip, account });
 
     if (!username && !email) {
+      await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: false });
       return { ok: false, message: '请填写用户名或邮箱' };
     }
 
@@ -137,7 +166,10 @@ export class AuthService {
       select: { id: true, name: true, username: true },
     });
 
-    if (!user) return { ok: false, message: '用户名或邮箱不存在' };
+    if (!user) {
+      await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: false });
+      return { ok: false, message: '用户名或邮箱不存在' };
+    }
 
     const configOwner = await this.prisma.user.findFirst({
       where: {
@@ -151,11 +183,13 @@ export class AuthService {
     });
 
     if (!configOwner?.id) {
+      await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: false });
       return { ok: false, message: '管理员邮箱未配置，请联系管理员处理' };
     }
 
     const config = await this.emailConfigService.getConfigWithSecret(configOwner.id);
     if (!config?.secret) {
+      await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: false });
       return { ok: false, message: '管理员邮箱未配置，请联系管理员处理' };
     }
 
@@ -186,6 +220,7 @@ export class AuthService {
 
     const to = targetMailbox?.emailAddress;
     if (!to) {
+      await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: false });
       return { ok: false, message: '用户未配置邮箱，请先完成邮箱配置' };
     }
 
@@ -196,6 +231,7 @@ export class AuthService {
       text: `你好${user.name ? `，${user.name}` : ''}，\n\n你的 Motila 临时密码为：${tempPassword}\n请登录后立即在个人信息中修改密码。\n\n（系统自动发送，请勿回复）`,
     });
 
+    await this.riskRuntimeService.recordResult({ scene: 'forgotPassword', ip, account, success: true });
     return { ok: true, message: '重置邮件已发送' };
   }
 
@@ -206,6 +242,14 @@ export class AuthService {
       result += chars[Math.floor(Math.random() * chars.length)];
     }
     return result;
+  }
+
+  private extractIp(requestMeta?: RequestMeta) {
+    const forwardedFor = requestMeta?.headers?.['x-forwarded-for'];
+    if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+      return forwardedFor.split(',')[0]?.trim();
+    }
+    return requestMeta?.ip;
   }
 
   private async signToken(
