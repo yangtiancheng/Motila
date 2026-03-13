@@ -126,7 +126,20 @@ export class RiskRuntimeService {
     const keys = this.buildKeys(input.scene, ip, account);
 
     if (input.success) {
-      for (const key of [keys.failIpHour, keys.failAccountHour, keys.blockIp, keys.blockAccount]) {
+      const successCleanupKeys = [keys.failIpHour, keys.failAccountHour, keys.blockIp, keys.blockAccount];
+
+      if (input.scene === 'login') {
+        successCleanupKeys.push(
+          keys.reqIpMinute,
+          keys.reqAccountMinute,
+          keys.reqIpHour,
+          keys.reqAccountHour,
+          keys.reqIpDay,
+          keys.reqAccountDay,
+        );
+      }
+
+      for (const key of successCleanupKeys) {
         if (key) await this.deleteKey(storage, key);
       }
       return;
