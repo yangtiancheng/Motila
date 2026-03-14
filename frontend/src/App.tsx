@@ -3831,6 +3831,8 @@ function AppShell({
 
 function App() {
   const { message } = AntdApp.useApp();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [skin, setSkin] = useState<SkinMode>(() => getInitialSkin());
   const [branding, setBranding] = useState<BrandingConfig>(() => getInitialBranding());
@@ -4049,33 +4051,36 @@ function App() {
   };
 
   if (!isAuthed || !user) {
-    return (
-      <ConfigProvider theme={authTheme}>
-        <div className={`auth-page skin-${effectiveSkin}`}>
+    const isAuthEntry = location.pathname === '/login' || location.pathname === '/register';
+
+    if (!isAuthEntry) {
+      return (
+        <ConfigProvider theme={authTheme}>
           <LandingPage
             systemTitle={publicSystemTitle}
             primaryColor={branding.primaryColor}
-            onLogin={() => {
+            onStart={() => {
               setMode('login');
               setAuthCaptchaRequired(false);
               setAuthCaptcha(null);
               authForm.resetFields(['captchaCode']);
-            }}
-            onRegister={() => {
-              setMode('register');
-              setAuthCaptchaRequired(false);
-              setAuthCaptcha(null);
-              authForm.resetFields(['captchaCode']);
+              navigate('/login');
             }}
           />
+        </ConfigProvider>
+      );
+    }
 
-          <div className="auth-float-panel">
-            <Card className="auth-card auth-card-compact" bordered={false}>
+    return (
+      <ConfigProvider theme={authTheme}>
+        <div className={`auth-page skin-${effectiveSkin}`}>
+          <div className="auth-standalone-shell">
+            <Card className="auth-card auth-card-compact auth-card-standalone" bordered={false}>
               <div className="auth-panel-form auth-panel-form-single">
                 <Form form={authForm} layout="vertical" onFinish={onSubmitAuth} className="auth-form">
-                  <div className="auth-header">
+                  <div className="auth-header auth-center-text">
                     <Typography.Text className="auth-kicker">{mode === 'login' ? 'WELCOME BACK' : 'CREATE ACCOUNT'}</Typography.Text>
-                    <Typography.Title level={4} className="auth-title">
+                    <Typography.Title level={3} className="auth-title">
                       {mode === 'login' ? '登录 Motila' : '注册 Motila 账号'}
                     </Typography.Title>
                     <Typography.Paragraph className="auth-subtitle">
@@ -4146,6 +4151,7 @@ function App() {
                           setAuthCaptchaRequired(false);
                           setAuthCaptcha(null);
                           authForm.resetFields(['captchaCode']);
+                          navigate('/register');
                         }}>
                           注册账号
                         </Typography.Link>
@@ -4168,6 +4174,7 @@ function App() {
                         setAuthCaptchaRequired(false);
                         setAuthCaptcha(null);
                         authForm.resetFields(['captchaCode']);
+                        navigate('/login');
                       }}>
                         返回登录
                       </Typography.Link>
@@ -4197,7 +4204,7 @@ function App() {
               <Form.Item label="用户名（可选）" name="username">
                 <Input placeholder="请输入用户名（或只填邮箱）" />
               </Form.Item>
-              <Form.Item label="邮箱（可选）" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }]}>
+              <Form.Item label="邮箱（可选）" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }]}> 
                 <Input placeholder="you@example.com（或只填用户名）" />
               </Form.Item>
               {forgotCaptchaRequired && forgotCaptcha ? (
