@@ -40,6 +40,7 @@ import {
   BlogPostShowPage,
 } from './blog/BlogPages';
 import { LoginHistoryPage } from './login-history/LoginHistoryPage';
+import { LandingPage } from './LandingPage';
 import { buildMenuByAccess } from './menu.config';
 import { SchemaForm } from './shared/form/SchemaForm';
 import { SchemaQueryBar } from './shared/list/SchemaQueryBar';
@@ -2415,7 +2416,7 @@ function HrEmployeeFormPage({
           <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
             <Input disabled={loadingDetail} />
           </Form.Item>
-          <Form.Item label="状态" name="status" rules={[{ required: true }]}> 
+          <Form.Item label="状态" name="status" rules={[{ required: true }]}>
             <Select
               disabled={loadingDetail}
               options={[
@@ -2886,11 +2887,11 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
               <strong>先改草稿 → 再保存草稿 → 确认无误后发布</strong>。
             </Typography.Paragraph>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
-              字段理解：阈值控制请求频率；“失败几次触发验证码”表示进入更严格校验；“失败几次封禁”表示直接限制该 IP/账号继续请求；
+              字段理解：阈值控制请求频率；"失败几次触发验证码"表示进入更严格校验；"失败几次封禁"表示直接限制该 IP/账号继续请求；
               Retry-After 会影响前端/客户端提示的等待秒数。
             </Typography.Paragraph>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-              黑白名单优先级最高：白名单可跳过常规限制，黑名单会直接拦截。修改完成后记得点击“发布”，只保存草稿不会立即生效。
+              黑白名单优先级最高：白名单可跳过常规限制，黑名单会直接拦截。修改完成后记得点击"发布"，只保存草稿不会立即生效。
             </Typography.Paragraph>
           </Card>
 
@@ -3119,7 +3120,7 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
 
             <Card type="inner" title="操作区">
               <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-                保存草稿仅保存当前编辑内容，不会立刻影响线上；点击“发布生效”后，当前草稿才会成为正式风控配置。
+                保存草稿仅保存当前编辑内容，不会立刻影响线上；点击"发布生效"后，当前草稿才会成为正式风控配置。
               </Typography.Paragraph>
               <Space wrap>
                 <Button onClick={() => { void loadConfig(); void loadVersions(); }}>刷新配置</Button>
@@ -3137,7 +3138,7 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
 
       <Card title={`版本列表${config ? `（当前生效：v${config.version}）` : ''}`} loading={versionsLoading}>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-          “保存草稿”只会更新草稿版本；“发布”后才会成为线上生效配置；如发布后有问题，可在下方选择历史版本回滚。
+          "保存草稿"只会更新草稿版本；"发布"后才会成为线上生效配置；如发布后有问题，可在下方选择历史版本回滚。
         </Typography.Paragraph>
         <Table<RiskControlVersionItem>
           rowKey="id"
@@ -3830,6 +3831,8 @@ function AppShell({
 
 function App() {
   const { message } = AntdApp.useApp();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [skin, setSkin] = useState<SkinMode>(() => getInitialSkin());
   const [branding, setBranding] = useState<BrandingConfig>(() => getInitialBranding());
@@ -4048,179 +4051,191 @@ function App() {
   };
 
   if (!isAuthed || !user) {
+    const isAuthEntry = location.pathname === '/login' || location.pathname === '/register';
+
+    if (!isAuthEntry) {
+      return (
+        <ConfigProvider theme={authTheme}>
+          <LandingPage
+            systemTitle={publicSystemTitle}
+            primaryColor={branding.primaryColor}
+            onStart={() => {
+              setMode('login');
+              setAuthCaptchaRequired(false);
+              setAuthCaptcha(null);
+              authForm.resetFields(['captchaCode']);
+              navigate('/login');
+            }}
+          />
+        </ConfigProvider>
+      );
+    }
+
     return (
       <ConfigProvider theme={authTheme}>
         <div className={`auth-page skin-${effectiveSkin}`}>
-          <div className="auth-shell">
-            <Card className="auth-card" bordered={false}>
-              <div className="auth-panel">
-                <div className="auth-panel-hero">
-                  <Typography.Text className="auth-kicker">MOTILA WORKSPACE</Typography.Text>
-                  <Typography.Title level={2} className="auth-title">
-                    {mode === 'login' ? '欢迎登录 Motila' : '创建你的 Motila 账号'}
-                  </Typography.Title>
-                  <Typography.Paragraph className="auth-subtitle">
-                    一个开箱即用的管理系统框架。
-                  </Typography.Paragraph>
-                </div>
+          <div className="auth-standalone-shell">
+            <Card className="auth-card auth-card-compact auth-card-standalone" bordered={false}>
+              <div className="auth-panel-form auth-panel-form-single">
+                <Form form={authForm} layout="vertical" onFinish={onSubmitAuth} className="auth-form">
+                  <div className="auth-header auth-center-text">
+                    <Typography.Text className="auth-kicker">{mode === 'login' ? 'WELCOME BACK' : 'CREATE ACCOUNT'}</Typography.Text>
+                    <Typography.Title level={3} className="auth-title">
+                      {mode === 'login' ? '登录 Motila' : '注册 Motila 账号'}
+                    </Typography.Title>
+                    <Typography.Paragraph className="auth-subtitle">
+                      {mode === 'login' ? '输入账号密码，进入你的系统工作台。' : '创建账号后即可进入系统。'}
+                    </Typography.Paragraph>
+                  </div>
 
-                <div className="auth-panel-form">
-                  <Form form={authForm} layout="vertical" onFinish={onSubmitAuth} className="auth-form">
-                    <Form.Item
-                      label="用户名"
-                      name="username"
-                      rules={[
-                        { required: true, min: 4, message: '用户名至少4位' },
-                        { pattern: /^[a-zA-Z0-9_]+$/, message: '仅支持字母、数字、下划线' },
-                      ]}
-                    >
-                      <Input size="large" placeholder="请输入登录用户名" />
-                    </Form.Item>
+                  <Form.Item
+                    label="用户名"
+                    name="username"
+                    rules={[
+                      { required: true, min: 4, message: '用户名至少4位' },
+                      { pattern: /^[a-zA-Z0-9_]+$/, message: '仅支持字母、数字、下划线' },
+                    ]}
+                  >
+                    <Input size="large" placeholder="请输入登录用户名" />
+                  </Form.Item>
 
-                    {mode === 'register' && (
-                      <>
-                        <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}>
-                          <Input size="large" placeholder="you@example.com" />
-                        </Form.Item>
+                  {mode === 'register' && (
+                    <>
+                      <Form.Item label="邮箱" name="email" rules={[{ required: true, type: 'email' }]}> 
+                        <Input size="large" placeholder="you@example.com" />
+                      </Form.Item>
 
-                        <Form.Item
-                          label="昵称"
-                          name="name"
-                          rules={[{ required: true, min: 2, message: '昵称至少2位' }]}
-                        >
-                          <Input size="large" placeholder="请输入昵称" />
-                        </Form.Item>
-                      </>
-                    )}
+                      <Form.Item label="昵称" name="name" rules={[{ required: true, min: 2, message: '昵称至少2位' }]}> 
+                        <Input size="large" placeholder="请输入昵称" />
+                      </Form.Item>
+                    </>
+                  )}
 
-                    <Form.Item label="密码" name="password" rules={[{ required: true, min: 1, message: '密码不能为空' }]}>
-                      <Input.Password size="large" placeholder="请输入密码" />
-                    </Form.Item>
+                  <Form.Item label="密码" name="password" rules={[{ required: true, min: 1, message: '密码不能为空' }]}> 
+                    <Input.Password size="large" placeholder="请输入密码" />
+                  </Form.Item>
 
-                    {authCaptchaRequired && authCaptcha ? (
-                      <>
-                        <Form.Item
-                          label="验证码"
-                          name="captchaCode"
-                          rules={[{ required: true, message: '请输入验证码' }]}
-                          extra="验证码默认 5 分钟内有效，不区分大小写。"
-                        >
-                          <Space.Compact style={{ width: '100%' }}>
-                            <Input size="large" placeholder="输入图中验证码" maxLength={16} />
-                            <Button onClick={() => void loadCaptcha(mode === 'login' ? 'login' : 'register')}>换一张</Button>
-                          </Space.Compact>
-                        </Form.Item>
-                        <div style={{ marginTop: -8, marginBottom: 16 }}>
-                          <img
-                            src={authCaptcha.imageData}
-                            alt="captcha"
-                            style={{ height: 44, cursor: 'pointer', borderRadius: 8, border: '1px solid #f0f0f0', background: '#fff' }}
-                            onClick={() => void loadCaptcha(mode === 'login' ? 'login' : 'register')}
-                          />
-                        </div>
-                      </>
-                    ) : null}
+                  {authCaptchaRequired && authCaptcha ? (
+                    <>
+                      <Form.Item
+                        label="验证码"
+                        name="captchaCode"
+                        rules={[{ required: true, message: '请输入验证码' }]}
+                        extra="验证码默认 5 分钟内有效，不区分大小写。"
+                      >
+                        <Space.Compact style={{ width: '100%' }}>
+                          <Input size="large" placeholder="输入图中验证码" maxLength={16} />
+                          <Button onClick={() => void loadCaptcha(mode === 'login' ? 'login' : 'register')}>换一张</Button>
+                        </Space.Compact>
+                      </Form.Item>
+                      <div style={{ marginTop: -8, marginBottom: 16 }}>
+                        <img
+                          src={authCaptcha.imageData}
+                          alt="captcha"
+                          style={{ height: 44, cursor: 'pointer', borderRadius: 8, border: '1px solid #f0f0f0', background: '#fff' }}
+                          onClick={() => void loadCaptcha(mode === 'login' ? 'login' : 'register')}
+                        />
+                      </div>
+                    </>
+                  ) : null}
 
-                    <div className="auth-actions">
-                      <Button type="primary" htmlType="submit" loading={authLoading} size="large" block>
-                        {mode === 'login' ? '立即登录' : '立即注册'}
-                      </Button>
+                  <div className="auth-actions">
+                    <Button type="primary" htmlType="submit" loading={authLoading} size="large" block>
+                      {mode === 'login' ? '立即登录' : '立即注册'}
+                    </Button>
 
-                      {mode === 'login' ? (
-                        <Space size={16}>
-                          <Typography.Link className="auth-mode-link" onClick={() => {
-                            setMode('register');
-                            setAuthCaptchaRequired(false);
-                            setAuthCaptcha(null);
-                            authForm.resetFields(['captchaCode']);
-                          }}>
-                            注册账号
-                          </Typography.Link>
-                          <Typography.Link
-                            className="auth-mode-link"
-                            onClick={() => {
-                              setForgotOpen(true);
-                              setForgotCaptchaRequired(false);
-                              setForgotCaptcha(null);
-                              forgotForm.resetFields(['captchaCode']);
-                              forgotForm.setFieldsValue({ username: authForm.getFieldValue('username') });
-                            }}
-                          >
-                            忘记密码
-                          </Typography.Link>
-                        </Space>
-                      ) : (
+                    {mode === 'login' ? (
+                      <Space size={16}>
                         <Typography.Link className="auth-mode-link" onClick={() => {
-                          setMode('login');
+                          setMode('register');
                           setAuthCaptchaRequired(false);
                           setAuthCaptcha(null);
                           authForm.resetFields(['captchaCode']);
+                          navigate('/register');
                         }}>
-                          返回登录
+                          注册账号
                         </Typography.Link>
-                      )}
-                    </div>
-                  </Form>
-                </div>
+                        <Typography.Link
+                          className="auth-mode-link"
+                          onClick={() => {
+                            setForgotOpen(true);
+                            setForgotCaptchaRequired(false);
+                            setForgotCaptcha(null);
+                            forgotForm.resetFields(['captchaCode']);
+                            forgotForm.setFieldsValue({ username: authForm.getFieldValue('username') });
+                          }}
+                        >
+                          忘记密码
+                        </Typography.Link>
+                      </Space>
+                    ) : (
+                      <Typography.Link className="auth-mode-link" onClick={() => {
+                        setMode('login');
+                        setAuthCaptchaRequired(false);
+                        setAuthCaptcha(null);
+                        authForm.resetFields(['captchaCode']);
+                        navigate('/login');
+                      }}>
+                        返回登录
+                      </Typography.Link>
+                    )}
+                  </div>
+                </Form>
               </div>
             </Card>
           </div>
-        </div>
 
-        <Modal
-          title="邮箱找回密码"
-          open={forgotOpen}
-          onCancel={() => {
-            setForgotOpen(false);
-            setForgotCaptchaRequired(false);
-            setForgotCaptcha(null);
-            forgotForm.resetFields(['captchaCode']);
-          }}
-          onOk={() => void onSubmitForgotPassword()}
-          okText="发送重置邮件"
-          cancelText="取消"
-          confirmLoading={forgotSubmitting}
-          destroyOnClose
-        >
-          <Form form={forgotForm} layout="vertical">
-            <Form.Item label="用户名（可选）" name="username">
-              <Input placeholder="请输入用户名（或只填邮箱）" />
-            </Form.Item>
-            <Form.Item label="邮箱（可选）" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }]}>
-              <Input placeholder="you@example.com（或只填用户名）" />
-            </Form.Item>
-            {forgotCaptchaRequired && forgotCaptcha ? (
-              <>
-                <Alert
-                  type="warning"
-                  showIcon
-                  style={{ marginBottom: 16 }}
-                  message="当前找回密码请求需要验证码"
-                  description="为了防止恶意探测，达到风控阈值后必须先通过图形验证码。"
-                />
-                <Form.Item
-                  label="验证码"
-                  name="captchaCode"
-                  rules={[{ required: true, message: '请输入验证码' }]}
-                >
-                  <Space.Compact style={{ width: '100%' }}>
-                    <Input placeholder="输入图中验证码" maxLength={16} />
-                    <Button onClick={() => void loadCaptcha('forgotPassword')}>换一张</Button>
-                  </Space.Compact>
-                </Form.Item>
-                <div style={{ marginTop: -8, marginBottom: 12 }}>
-                  <img
-                    src={forgotCaptcha.imageData}
-                    alt="captcha"
-                    style={{ height: 44, cursor: 'pointer', borderRadius: 8, border: '1px solid #f0f0f0', background: '#fff' }}
-                    onClick={() => void loadCaptcha('forgotPassword')}
+          <Modal
+            title="邮箱找回密码"
+            open={forgotOpen}
+            onCancel={() => {
+              setForgotOpen(false);
+              setForgotCaptchaRequired(false);
+              setForgotCaptcha(null);
+              forgotForm.resetFields(['captchaCode']);
+            }}
+            onOk={() => void onSubmitForgotPassword()}
+            okText="发送重置邮件"
+            cancelText="取消"
+            confirmLoading={forgotSubmitting}
+            destroyOnClose
+          >
+            <Form form={forgotForm} layout="vertical">
+              <Form.Item label="用户名（可选）" name="username">
+                <Input placeholder="请输入用户名（或只填邮箱）" />
+              </Form.Item>
+              <Form.Item label="邮箱（可选）" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }]}> 
+                <Input placeholder="you@example.com（或只填用户名）" />
+              </Form.Item>
+              {forgotCaptchaRequired && forgotCaptcha ? (
+                <>
+                  <Alert
+                    type="warning"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                    message="当前找回密码请求需要验证码"
+                    description="为了防止恶意探测，达到风控阈值后必须先通过图形验证码。"
                   />
-                </div>
-              </>
-            ) : null}
-            <Typography.Text type="secondary">用户名和邮箱填一个就行。系统会在账号信息存在且已绑定邮箱时发送临时密码邮件。</Typography.Text>
-          </Form>
-        </Modal>
+                  <Form.Item label="验证码" name="captchaCode" rules={[{ required: true, message: '请输入验证码' }]}> 
+                    <Space.Compact style={{ width: '100%' }}>
+                      <Input placeholder="输入图中验证码" maxLength={16} />
+                      <Button onClick={() => void loadCaptcha('forgotPassword')}>换一张</Button>
+                    </Space.Compact>
+                  </Form.Item>
+                  <div style={{ marginTop: -8, marginBottom: 12 }}>
+                    <img
+                      src={forgotCaptcha.imageData}
+                      alt="captcha"
+                      style={{ height: 44, cursor: 'pointer', borderRadius: 8, border: '1px solid #f0f0f0', background: '#fff' }}
+                      onClick={() => void loadCaptcha('forgotPassword')}
+                    />
+                  </div>
+                </>
+              ) : null}
+              <Typography.Text type="secondary">用户名和邮箱填一个就行。系统会在账号信息存在且已绑定邮箱时发送临时密码邮件。</Typography.Text>
+            </Form>
+          </Modal>
+        </div>
       </ConfigProvider>
     );
   }
