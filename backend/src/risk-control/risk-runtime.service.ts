@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import Redis from 'ioredis';
+import { RISK_SCENES } from './risk-control.dto';
 import { RiskControlService } from './risk-control.service';
 
 type RiskScene = 'login' | 'register' | 'forgotPassword';
@@ -17,6 +18,10 @@ type RiskRecordInput = RiskCheckInput & {
 type RiskDecision = {
   needCaptcha: boolean;
 };
+
+type RiskStorage = { kind: 'memory' } | { kind: 'redis'; client: Redis };
+
+type RiskKeys = ReturnType<RiskRuntimeService['buildKeys']>;
 
 @Injectable()
 export class RiskRuntimeService {
@@ -161,33 +166,85 @@ export class RiskRuntimeService {
     }
   }
 
+  async resetByIp(ip: string, scenes: RiskScene[] = [...RISK_SCENES]) {
+    const config = await this.riskControlService.getConfig();
+    const storage = await this.getStorage(config.content.degradePolicy.redisUnavailable, false);
+    const normalizedIp = ip.trim();
+
+    let deletedKeys = 0;
+    for (const scene of scenes) {
+      const keys = this.buildKeys(scene, normalizedIp, undefined);
+      deletedKeys += await this.deleteMany(storage, [
+        keys.reqIpMinute,
+        keys.reqIpHour,
+        keys.reqIpDay,
+        keys.failIpHour,
+        keys.blockIp,
+      ]);
+    }
+
+    return {
+      targetType: 'ip' as const,
+      target: normalizedIp,
+      scenes,
+      deletedKeys,
+      storage: storage.kind,
+    };
+  }
+
+  async resetByAccount(account: string, scenes: RiskScene[] = [...RISK_SCENES]) {
+    const config = await this.riskControlService.getConfig();
+    const storage = await this.getStorage(config.content.degradePolicy.redisUnavailable, false);
+    const normalizedAccount = account.trim().toLowerCase();
+
+    let deletedKeys = 0;
+    for (const scene of scenes) {
+      const keys = this.buildKeys(scene, undefined, normalizedAccount);
+      deletedKeys += await this.deleteMany(storage, [
+        keys.reqAccountMinute,
+        keys.reqAccountHour,
+        keys.reqAccountDay,
+        keys.failAccountHour,
+        keys.blockAccount,
+      ]);
+    }
+
+    return {
+      targetType: 'account' as const,
+      target: normalizedAccount,
+      scenes,
+      deletedKeys,
+      storage: storage.kind,
+    };
+  }
+
   private hitThreshold(ipValue: number, accountValue: number, limit?: number) {
     return !!limit && (ipValue > limit || accountValue > limit);
   }
 
-  private async getStorage(policy: 'ALLOW_WITH_CAPTCHA' | 'BLOCK_REQUESTS', throwOnBlock = true) {
+  private async getStorage(policy: 'ALLOW_WITH_CAPTCHA' | 'BLOCK_REQUESTS', throwOnBlock = true): Promise<RiskStorage> {
     if (!this.redisEnabled || !this.redis) {
       if (policy === 'BLOCK_REQUESTS' && throwOnBlock) {
         throw new ServiceUnavailableException('风控服务不可用，请稍后再试');
       }
-      return { kind: 'memory' as const };
+      return { kind: 'memory' };
     }
 
     try {
       if (this.redis.status !== 'ready') {
         await this.redis.connect();
       }
-      return { kind: 'redis' as const, client: this.redis };
+      return { kind: 'redis', client: this.redis };
     } catch (error) {
       this.logger.warn(`Redis unavailable: ${error instanceof Error ? error.message : String(error)}`);
       if (policy === 'BLOCK_REQUESTS' && throwOnBlock) {
         throw new ServiceUnavailableException('风控服务不可用，请稍后再试');
       }
-      return { kind: 'memory' as const };
+      return { kind: 'memory' };
     }
   }
 
-  private async bumpCounter(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key?: string | null, ttlSec = 60) {
+  private async bumpCounter(storage: RiskStorage, key?: string | null, ttlSec = 60) {
     if (!key) return;
     if (storage.kind === 'redis') {
       const value = await storage.client.incr(key);
@@ -206,7 +263,7 @@ export class RiskRuntimeService {
     current.value += 1;
   }
 
-  private async readCounter(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key?: string | null) {
+  private async readCounter(storage: RiskStorage, key?: string | null) {
     if (!key) return 0;
     if (storage.kind === 'redis') {
       return Number((await storage.client.get(key)) || '0');
@@ -221,7 +278,7 @@ export class RiskRuntimeService {
     return current.value;
   }
 
-  private async setBlock(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key: string, ttlSec: number) {
+  private async setBlock(storage: RiskStorage, key: string, ttlSec: number) {
     if (storage.kind === 'redis') {
       await storage.client.set(key, '1', 'EX', ttlSec);
       return;
@@ -229,7 +286,7 @@ export class RiskRuntimeService {
     this.memoryBlocks.set(key, Date.now() + ttlSec * 1000);
   }
 
-  private async readBlockTtl(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key?: string | null) {
+  private async readBlockTtl(storage: RiskStorage, key?: string | null) {
     if (!key) return 0;
     if (storage.kind === 'redis') {
       const ttl = await storage.client.ttl(key);
@@ -245,13 +302,30 @@ export class RiskRuntimeService {
     return ttl;
   }
 
-  private async deleteKey(storage: { kind: 'memory' } | { kind: 'redis'; client: Redis }, key: string) {
+  private async deleteKey(storage: RiskStorage, key: string) {
     if (storage.kind === 'redis') {
       await storage.client.del(key);
       return;
     }
     this.memoryCounters.delete(key);
     this.memoryBlocks.delete(key);
+  }
+
+  private async deleteMany(storage: RiskStorage, keys: Array<string | null | undefined>) {
+    const realKeys = keys.filter((key): key is string => !!key);
+    if (realKeys.length === 0) return 0;
+
+    if (storage.kind === 'redis') {
+      return await storage.client.del(...realKeys);
+    }
+
+    let deleted = 0;
+    for (const key of realKeys) {
+      const hadCounter = this.memoryCounters.delete(key);
+      const hadBlock = this.memoryBlocks.delete(key);
+      if (hadCounter || hadBlock) deleted += 1;
+    }
+    return deleted;
   }
 
   private buildKeys(scene: RiskScene, ip?: string | null, account?: string | null) {

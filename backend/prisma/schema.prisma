@@ -56,20 +56,21 @@ enum RiskConfigVersionStatus {
 }
 
 model User {
-  id            String          @id @default(cuid())
-  username      String          @unique
-  email         String          @unique
-  name          String
-  avatarUrl     String?
-  avatarImage   String?
-  passwordHash  String
-  role          UserRole        @default(USER)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  roles         UserRoleMap[]
-  emailConfig   UserEmailConfig?
-  emailSendLogs EmailSendLog[]
-  emailInboxes  EmailInbox[]
+  id             String          @id @default(cuid())
+  username       String          @unique
+  email          String          @unique
+  name           String
+  avatarUrl      String?
+  avatarImage    String?
+  passwordHash   String
+  role           UserRole        @default(USER)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  roles          UserRoleMap[]
+  emailConfig    UserEmailConfig?
+  emailSendLogs  EmailSendLog[]
+  emailInboxes   EmailInbox[]
+  loginHistories LoginHistory[]
 }
 
 model AuditLog {
@@ -277,4 +278,41 @@ model RiskControlConfigVersion {
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt
   publishedAt DateTime?
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String?
+  username  String
+  name      String?
+  ip        String?
+  userAgent String?
+  status    String
+  reason    String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model BlogCategory {
+  id          String     @id @default(cuid())
+  name        String
+  slug        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  posts       BlogPost[]
+}
+
+model BlogPost {
+  id          String       @id @default(cuid())
+  title       String
+  slug        String       @unique
+  summary     String?
+  contentMd   String?
+  isPublished Boolean      @default(false)
+  publishedAt DateTime?
+  categoryId  String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  category    BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }
