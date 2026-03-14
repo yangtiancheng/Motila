@@ -31,6 +31,15 @@ import { MenuOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AuditLogsPage } from './audit/AuditLogsPage';
+import {
+  BlogCategoryFormPage,
+  BlogCategoryListPage,
+  BlogCategoryShowPage,
+  BlogPostFormPage,
+  BlogPostListPage,
+  BlogPostShowPage,
+} from './blog/BlogPages';
+import { LoginHistoryPage } from './login-history/LoginHistoryPage';
 import { buildMenuByAccess } from './menu.config';
 import { SchemaForm } from './shared/form/SchemaForm';
 import { SchemaQueryBar } from './shared/list/SchemaQueryBar';
@@ -2625,6 +2634,11 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [config, setConfig] = useState<RiskControlConfigResponse | null>(null);
   const [versions, setVersions] = useState<RiskControlVersionItem[]>([]);
+  const [resettingIp, setResettingIp] = useState(false);
+  const [resettingAccount, setResettingAccount] = useState(false);
+  const [resettingAll, setResettingAll] = useState(false);
+  const [userOptionsLoading, setUserOptionsLoading] = useState(false);
+  const [userOptions, setUserOptions] = useState<Array<{ label: string; value: string }>>([]);
 
   const loadVersions = async () => {
     setVersionsLoading(true);
@@ -2650,6 +2664,7 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
         whitelistAccounts: arrayToLines(data.content.whitelist.accounts),
         blacklistIps: arrayToLines(data.content.blacklist.ips),
         blacklistAccounts: arrayToLines(data.content.blacklist.accounts),
+        resetScenes: ['login', 'register', 'forgotPassword'],
         scenes: data.content.scenes,
       });
     } catch (error) {
@@ -2659,9 +2674,31 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
     }
   };
 
+  const loadUserOptions = async () => {
+    setUserOptionsLoading(true);
+    try {
+      const data = await api<ListUsersResponse>('/users?page=1&pageSize=0', undefined, true);
+      setUserOptions(
+        (data.data ?? []).map((item) => {
+          const account = item.username || item.email || item.id;
+          const displayName = item.name || item.username || item.email || item.id;
+          return {
+            value: account,
+            label: `${displayName}（${account}）`,
+          };
+        }),
+      );
+    } catch (error) {
+      message.error(`加载用户选项失败：${parseError(error)}`);
+    } finally {
+      setUserOptionsLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadConfig();
     void loadVersions();
+    void loadUserOptions();
   }, []);
 
   const buildPayload = async () => {
@@ -2724,6 +2761,75 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
     }
   };
 
+  const resetRiskByIp = async () => {
+    const ip = String(form.getFieldValue('resetIp') ?? '').trim();
+    const scenes = (form.getFieldValue('resetScenes') ?? ['login', 'register', 'forgotPassword']) as RiskSceneCode[];
+    if (!ip) {
+      message.warning('请输入要重置的 IP');
+      return;
+    }
+
+    setResettingIp(true);
+    try {
+      const result = await api<{ deletedKeys: number; storage: string; target: string }>('/risk-control/reset/ip', {
+        method: 'POST',
+        body: JSON.stringify({ ip, scenes }),
+      }, true);
+      message.success(`IP ${result.target} 风控状态已重置，清理 ${result.deletedKeys} 个键（${result.storage}）`);
+      form.setFieldValue('resetIp', '');
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setResettingIp(false);
+    }
+  };
+
+  const resetRiskByAccount = async () => {
+    const account = String(form.getFieldValue('resetAccount') ?? '').trim();
+    const scenes = (form.getFieldValue('resetScenes') ?? ['login', 'register', 'forgotPassword']) as RiskSceneCode[];
+    if (!account) {
+      message.warning('请选择要重置的用户/账号');
+      return;
+    }
+
+    setResettingAccount(true);
+    try {
+      const result = await api<{ deletedKeys: number; storage: string; target: string }>('/risk-control/reset/account', {
+        method: 'POST',
+        body: JSON.stringify({ account, scenes }),
+      }, true);
+      message.success(`账号 ${result.target} 风控状态已重置，清理 ${result.deletedKeys} 个键（${result.storage}）`);
+      form.setFieldValue('resetAccount', undefined);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setResettingAccount(false);
+    }
+  };
+
+  const resetRiskAll = async () => {
+    const ip = String(form.getFieldValue('resetIp') ?? '').trim();
+    const account = String(form.getFieldValue('resetAccount') ?? '').trim();
+    const scenes = (form.getFieldValue('resetScenes') ?? ['login', 'register', 'forgotPassword']) as RiskSceneCode[];
+    if (!ip || !account) {
+      message.warning('一键双重置需要同时填写 IP 和用户/账号');
+      return;
+    }
+
+    setResettingAll(true);
+    try {
+      const result = await api<{ deletedKeys: number; storage: string }>('/risk-control/reset/all', {
+        method: 'POST',
+        body: JSON.stringify({ ip, account, scenes }),
+      }, true);
+      message.success(`IP + 账号风控状态已双重置，清理 ${result.deletedKeys} 个键（${result.storage}）`);
+    } catch (error) {
+      message.error(parseError(error));
+    } finally {
+      setResettingAll(false);
+    }
+  };
+
   const sceneCards: Array<{
     key: RiskSceneCode;
     title: string;
@@ -2752,6 +2858,12 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
       tips: ['忘记密码建议加上每日阈值，防止长时间慢刷。', '该场景对用户体验敏感，Retry-After 提示建议写得更长一些。'],
       recommended: '建议：每分钟 1 次、每小时 5 次、每天 10 次、失败 3 次触发验证码、失败 10 次封禁。',
     },
+  ];
+
+  const resetSceneOptions = [
+    { label: '登录', value: 'login' },
+    { label: '注册', value: 'register' },
+    { label: '忘记密码', value: 'forgotPassword' },
   ];
 
   return (
@@ -2785,6 +2897,7 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
           <Form form={form} layout="vertical" initialValues={{
             enabled: true,
             degradePolicy: 'ALLOW_WITH_CAPTCHA',
+            resetScenes: ['login', 'register', 'forgotPassword'],
             scenes: DEFAULT_RISK_CONTROL_CONTENT.scenes,
           }}>
             <Card type="inner" title="全局策略" style={{ marginBottom: 16 }}>
@@ -2949,6 +3062,59 @@ function RiskControlPage({ canUpdate }: { canUpdate: boolean }) {
                   <Input.TextArea rows={6} disabled={!canUpdate} placeholder="每行一个账号，如 test-bot" />
                 </Form.Item>
               </Space>
+            </Card>
+
+            <Card type="inner" title="重置风控状态">
+              <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                用于临时解除某个 IP 或账号的风控计数/封禁。支持选择作用场景，默认重置全部场景。
+              </Typography.Paragraph>
+
+              <Form.Item label="作用场景" name="resetScenes">
+                <Checkbox.Group options={resetSceneOptions} disabled={!canUpdate} />
+              </Form.Item>
+
+              <Space size={24} align="start" wrap style={{ width: '100%' }}>
+                <Card size="small" title="按 IP 重置" style={{ minWidth: 320, flex: 1 }}>
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Form.Item name="resetIp" label="IP 地址" style={{ marginBottom: 8 }}>
+                      <Input placeholder="例如 127.0.0.1" disabled={!canUpdate} />
+                    </Form.Item>
+                    <Button type="primary" onClick={() => void resetRiskByIp()} loading={resettingIp} disabled={!canUpdate}>
+                      重置该 IP 风控
+                    </Button>
+                  </Space>
+                </Card>
+
+                <Card size="small" title="按用户/账号重置" style={{ minWidth: 320, flex: 1 }}>
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    <Form.Item name="resetAccount" label="用户账号" style={{ marginBottom: 8 }}>
+                      <Select
+                        showSearch
+                        allowClear
+                        placeholder="选择或搜索用户"
+                        loading={userOptionsLoading}
+                        options={userOptions}
+                        optionFilterProp="label"
+                        disabled={!canUpdate}
+                      />
+                    </Form.Item>
+                    <Button type="primary" onClick={() => void resetRiskByAccount()} loading={resettingAccount} disabled={!canUpdate}>
+                      重置该账号风控
+                    </Button>
+                  </Space>
+                </Card>
+              </Space>
+
+              <Alert
+                type="info"
+                showIcon
+                message="一键双重置"
+                description="如果同一个用户同时命中了账号维度和当前 IP 维度，可以直接用这一键双重置同时清掉两条线。"
+                style={{ marginTop: 16, marginBottom: 16 }}
+              />
+              <Button type="primary" danger onClick={() => void resetRiskAll()} loading={resettingAll} disabled={!canUpdate}>
+                一键双重置（IP + 账号）
+              </Button>
             </Card>
 
             <Card type="inner" title="操作区">
@@ -3145,6 +3311,15 @@ function AppShell({
   const canRbacUpdate = can('rbac.update');
   const canRiskRead = can('risk.read');
   const canRiskUpdate = can('risk.update');
+  const canLoginHistoryRead = can('login-history.read');
+  const canBlogCategoryRead = can('blog-category.read');
+  const canBlogCategoryCreate = can('blog-category.create');
+  const canBlogCategoryUpdate = can('blog-category.update');
+  const canBlogCategoryAccess = canBlogCategoryRead || canBlogCategoryCreate || canBlogCategoryUpdate;
+  const canBlogPostRead = can('blog-post.read');
+  const canBlogPostCreate = can('blog-post.create');
+  const canBlogPostUpdate = can('blog-post.update');
+  const canBlogPostAccess = canBlogPostRead || canBlogPostCreate || canBlogPostUpdate;
 
   useEffect(() => {
     if (!user?.permissions?.length) return;
@@ -3159,14 +3334,19 @@ function AppShell({
       (location.pathname.startsWith('/settings/system') && !canSettingsRead) ||
       (location.pathname.startsWith('/settings/modules') && !canModuleRead) ||
       (location.pathname.startsWith('/settings/rbac') && !canRbacRead) ||
-      (location.pathname.startsWith('/settings/risk-control') && !canRiskRead);
+      (location.pathname.startsWith('/settings/risk-control') && !canRiskRead) ||
+      (location.pathname.startsWith('/login-history') && !canLoginHistoryRead) ||
+      (location.pathname.startsWith('/blog/categories') && !canBlogCategoryAccess) ||
+      (location.pathname.startsWith('/blog/posts') && !canBlogPostAccess);
 
     const isRouteDisabledByModule =
       (location.pathname.startsWith('/users') && !enabledModuleCodes.has('users')) ||
       (location.pathname.startsWith('/audit-logs') && !enabledModuleCodes.has('audit')) ||
       (location.pathname.startsWith('/projects') && !enabledModuleCodes.has('project')) ||
       (location.pathname.startsWith('/hr') && !enabledModuleCodes.has('hr')) ||
-      (location.pathname.startsWith('/settings/risk-control') && !enabledModuleCodes.has('risk-control'));
+      (location.pathname.startsWith('/settings/risk-control') && !enabledModuleCodes.has('risk-control')) ||
+      (location.pathname.startsWith('/login-history') && !enabledModuleCodes.has('login-history')) ||
+      (location.pathname.startsWith('/blog') && !enabledModuleCodes.has('blog'));
 
     if (isRouteForbidden || isRouteDisabledByModule) {
       message.warning('当前无权限或模块已关闭，已为你跳转到仪表盘');
@@ -3541,6 +3721,52 @@ function AppShell({
               ) : null}
 
               {canAuditRead ? <Route path="/audit-logs" element={<AuditLogsPage />} /> : null}
+              {canLoginHistoryRead ? <Route path="/login-history" element={<LoginHistoryPage />} /> : null}
+              {canBlogCategoryAccess ? (
+                <>
+                  <Route
+                    path="/blog/categories"
+                    element={<BlogCategoryListPage canCreate={canBlogCategoryCreate} canUpdate={canBlogCategoryUpdate} />}
+                  />
+                  <Route
+                    path="/blog/categories/create"
+                    element={<BlogCategoryFormPage mode="create" canCreate={canBlogCategoryCreate} canUpdate={canBlogCategoryUpdate} />}
+                  />
+                  <Route path="/blog/categories/:id" element={<BlogCategoryShowPage canUpdate={canBlogCategoryUpdate} />} />
+                  <Route
+                    path="/blog/categories/:id/edit"
+                    element={<BlogCategoryFormPage mode="edit" canCreate={canBlogCategoryCreate} canUpdate={canBlogCategoryUpdate} />}
+                  />
+                </>
+              ) : null}
+              {canBlogPostAccess ? (
+                <>
+                  <Route
+                    path="/blog/posts"
+                    element={<BlogPostListPage canCreate={canBlogPostCreate} canUpdate={canBlogPostUpdate} />}
+                  />
+                  <Route
+                    path="/blog/posts/create"
+                    element={<BlogPostFormPage mode="create" canCreate={canBlogPostCreate} canUpdate={canBlogPostUpdate} />}
+                  />
+                  <Route path="/blog/posts/:id" element={<BlogPostShowPage canUpdate={canBlogPostUpdate} />} />
+                  <Route
+                    path="/blog/posts/:id/edit"
+                    element={<BlogPostFormPage mode="edit" canCreate={canBlogPostCreate} canUpdate={canBlogPostUpdate} />}
+                  />
+                </>
+              ) : null}
+              <Route path="/salary" element={<Card title="薪酬管理">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/procurement" element={<Card title="采购管理">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/inventory" element={<Card title="库存管理">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/asset" element={<Card title="资产管理">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/ledger" element={<Card title="总账管理">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/department-cost" element={<Card title="科室成本">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/project-cost" element={<Card title="项目成本">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/disease-cost" element={<Card title="病种成本">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/income" element={<Card title="收入管理">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/budget" element={<Card title="预算管理">模块骨架已创建，后续可继续扩展。</Card>} />
+              <Route path="/performance" element={<Card title="绩效管理">模块骨架已创建，后续可继续扩展。</Card>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout.Content>
