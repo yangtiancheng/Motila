@@ -1,5 +1,14 @@
-import { Button, Card, Col, Row, Space, Tag, Typography } from 'antd';
-import { ArrowRightOutlined, CheckCircleFilled, LockOutlined, RocketOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Row, Space, Tag, Timeline, Typography } from 'antd';
+import {
+  ArrowRightOutlined,
+  CheckCircleFilled,
+  ClockCircleOutlined,
+  CloudServerOutlined,
+  LockOutlined,
+  RocketOutlined,
+  SafetyCertificateOutlined,
+  TeamOutlined,
+} from '@ant-design/icons';
 
 type LandingPageProps = {
   systemTitle: string;
@@ -33,6 +42,38 @@ const highlights = [
   },
 ];
 
+const stats = [
+  { value: '16+', label: '已接入模块' },
+  { value: '3 min', label: '启动体验' },
+  { value: 'RBAC', label: '权限体系' },
+  { value: '100%', label: '页面化流程' },
+];
+
+const scenarios = [
+  {
+    title: '后台搭建',
+    desc: '快速起用户、角色、模块、配置这些基础骨架。',
+    icon: <CloudServerOutlined />,
+  },
+  {
+    title: '团队协作',
+    desc: '权限边界清楚，谁看什么、谁改什么一眼分明。',
+    icon: <TeamOutlined />,
+  },
+  {
+    title: '业务扩展',
+    desc: '博客、项目、人事、财务模块都能继续往里长。',
+    icon: <ClockCircleOutlined />,
+  },
+];
+
+const steps = [
+  '未登录先看到品牌首页与产品能力说明',
+  '点击登录/注册进入悬浮卡片完成认证',
+  '登录后按权限进入各模块工作台',
+  '模块启停、角色授权、系统配置统一管理',
+];
+
 export function LandingPage({ systemTitle, primaryColor, onLogin, onRegister }: LandingPageProps) {
   return (
     <div className="landing-page" style={{ ['--landing-primary' as string]: primaryColor }}>
@@ -47,6 +88,13 @@ export function LandingPage({ systemTitle, primaryColor, onLogin, onRegister }: 
               {systemTitle}
             </Typography.Title>
           </div>
+
+          <nav className="landing-nav">
+            <a href="#highlights">核心能力</a>
+            <a href="#scenarios">使用场景</a>
+            <a href="#workflow">使用流程</a>
+          </nav>
+
           <Space>
             <Button size="large" onClick={onLogin}>登录</Button>
             <Button size="large" type="primary" onClick={onRegister}>
@@ -82,6 +130,15 @@ export function LandingPage({ systemTitle, primaryColor, onLogin, onRegister }: 
                 <div key={item} className="landing-capability-item">
                   <CheckCircleFilled />
                   <span>{item}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="landing-stats-row">
+              {stats.map((item) => (
+                <div key={item.label} className="landing-stat-chip">
+                  <strong>{item.value}</strong>
+                  <span>{item.label}</span>
                 </div>
               ))}
             </div>
@@ -123,7 +180,14 @@ export function LandingPage({ systemTitle, primaryColor, onLogin, onRegister }: 
           </Card>
         </section>
 
-        <section className="landing-highlights">
+        <section className="landing-highlights" id="highlights">
+          <div className="landing-section-head">
+            <Typography.Text className="landing-section-kicker">CORE HIGHLIGHTS</Typography.Text>
+            <Typography.Title level={2}>核心能力，不靠吹。</Typography.Title>
+            <Typography.Paragraph>
+              该有的模块化、权限、配置、统一交互模式都给你摆上，后续扩业务不容易写成屎山。
+            </Typography.Paragraph>
+          </div>
           <Row gutter={[16, 16]}>
             {highlights.map((item) => (
               <Col xs={24} md={8} key={item.title}>
@@ -136,6 +200,61 @@ export function LandingPage({ systemTitle, primaryColor, onLogin, onRegister }: 
             ))}
           </Row>
         </section>
+
+        <section className="landing-scenarios" id="scenarios">
+          <div className="landing-section-head">
+            <Typography.Text className="landing-section-kicker">SCENARIOS</Typography.Text>
+            <Typography.Title level={2}>适合谁用，拿来干嘛。</Typography.Title>
+          </div>
+          <Row gutter={[16, 16]}>
+            {scenarios.map((item) => (
+              <Col xs={24} md={8} key={item.title}>
+                <Card className="landing-scene-card" bordered={false}>
+                  <div className="landing-scene-icon">{item.icon}</div>
+                  <Typography.Title level={5}>{item.title}</Typography.Title>
+                  <Typography.Paragraph>{item.desc}</Typography.Paragraph>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </section>
+
+        <section className="landing-workflow" id="workflow">
+          <Row gutter={[24, 24]} align="middle">
+            <Col xs={24} lg={12}>
+              <div className="landing-section-head landing-section-head-left">
+                <Typography.Text className="landing-section-kicker">WORKFLOW</Typography.Text>
+                <Typography.Title level={2}>从首页到进系统，路径要顺。</Typography.Title>
+                <Typography.Paragraph>
+                  我把没登录时的体验重新捋了一遍。先看品牌首页，再通过悬浮登录卡片进后台，观感和路径都顺很多。
+                </Typography.Paragraph>
+              </div>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card className="landing-workflow-card" bordered={false}>
+                <Timeline
+                  items={steps.map((item) => ({
+                    color: 'blue',
+                    children: <span>{item}</span>,
+                  }))}
+                />
+              </Card>
+            </Col>
+          </Row>
+        </section>
+
+        <footer className="landing-footer">
+          <div>
+            <Typography.Title level={4} style={{ marginBottom: 6 }}>准备好了就直接进。</Typography.Title>
+            <Typography.Paragraph>
+              首页负责让产品看起来像产品，后台负责让事情真的能干。
+            </Typography.Paragraph>
+          </div>
+          <Space wrap>
+            <Button type="primary" size="large" onClick={onLogin}>进入后台</Button>
+            <Button size="large" onClick={onRegister}>创建账号</Button>
+          </Space>
+        </footer>
       </div>
     </div>
   );
