@@ -12,6 +12,8 @@ import { SystemConfigModule } from './system-config/system-config.module';
 import { EmailConfigModule } from './email-config/email-config.module';
 import { EmailsModule } from './emails/emails.module';
 import { RiskControlModule } from './risk-control/risk-control.module';
+import { LoginHistoryModule } from './login-history/login-history.module';
+import { BlogModule } from './blog/blog.module';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { RiskControlModule } from './risk-control/risk-control.module';
     EmailConfigModule,
     EmailsModule,
     RiskControlModule,
+    LoginHistoryModule,
+    BlogModule,
   ],
   controllers: [AppController],
 })

@@ -15,6 +15,7 @@ import { RbacService } from '../rbac/rbac.service';
 import { EmailConfigService } from '../email-config/email-config.service';
 import { RiskCaptchaService } from '../risk-control/risk-captcha.service';
 import { RiskRuntimeService } from '../risk-control/risk-runtime.service';
+import { LoginHistoryService } from '../login-history/login-history.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -28,6 +29,7 @@ export class AuthService {
     private readonly emailConfigService: EmailConfigService,
     private readonly riskRuntimeService: RiskRuntimeService,
     private readonly riskCaptchaService: RiskCaptchaService,
+    private readonly loginHistoryService: LoginHistoryService,
   ) {}
 
   getCaptcha(scene: 'login' | 'register' | 'forgotPassword') {
@@ -100,18 +102,21 @@ export class AuthService {
 
     if (!user) {
       await this.riskRuntimeService.recordResult({ scene: 'login', ip, account, success: false });
+      await this.loginHistoryService.create({ username: dto.username, ip, userAgent: this.extractUserAgent(requestMeta), status: 'FAILED', reason: '用户名不存在' });
       throw new UnauthorizedException('用户名或密码错误');
     }
 
     const ok = await bcrypt.compare(dto.password, user.passwordHash);
     if (!ok) {
       await this.riskRuntimeService.recordResult({ scene: 'login', ip, account, success: false });
+      await this.loginHistoryService.create({ userId: user.id, username: user.username, name: user.name, ip, userAgent: this.extractUserAgent(requestMeta), status: 'FAILED', reason: '密码错误' });
       throw new UnauthorizedException('用户名或密码错误');
     }
 
     const access = await this.rbacService.buildAccessContext(user.id);
     const token = await this.signToken(user.id, user.email, user.role, access);
     await this.riskRuntimeService.recordResult({ scene: 'login', ip, account, success: true });
+    await this.loginHistoryService.create({ userId: user.id, username: user.username, name: user.name, ip, userAgent: this.extractUserAgent(requestMeta), status: 'SUCCESS' });
     return {
       token,
       user: {
@@ -272,6 +277,12 @@ export class AuthService {
       result += chars[Math.floor(Math.random() * chars.length)];
     }
     return result;
+  }
+
+  private extractUserAgent(requestMeta?: RequestMeta) {
+    const raw = requestMeta?.headers?.['user-agent'];
+    if (Array.isArray(raw)) return raw[0];
+    return raw;
   }
 
   private extractIp(requestMeta?: RequestMeta) {

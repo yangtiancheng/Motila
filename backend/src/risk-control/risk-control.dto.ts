@@ -4,6 +4,8 @@ import { Type } from 'class-transformer';
 const SCENES = ['login', 'register', 'forgotPassword'] as const;
 const REDIS_DEGRADE_POLICIES = ['ALLOW_WITH_CAPTCHA', 'BLOCK_REQUESTS'] as const;
 
+export const RISK_SCENES = SCENES;
+
 type RiskSceneCode = (typeof SCENES)[number];
 type RedisDegradePolicy = (typeof REDIS_DEGRADE_POLICIES)[number];
 
@@ -149,6 +151,39 @@ export class RollbackRiskControlConfigDto {
   @IsOptional()
   @IsString()
   publishedBy?: string;
+}
+
+export class ResetRiskByIpDto {
+  @IsString()
+  ip!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(SCENES, { each: true })
+  scenes?: RiskSceneCode[];
+}
+
+export class ResetRiskByAccountDto {
+  @IsString()
+  account!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(SCENES, { each: true })
+  scenes?: RiskSceneCode[];
+}
+
+export class ResetRiskAllDto {
+  @IsString()
+  ip!: string;
+
+  @IsString()
+  account!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(SCENES, { each: true })
+  scenes?: RiskSceneCode[];
 }
 
 export type RiskControlConfigContent = {
