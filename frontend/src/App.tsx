@@ -41,6 +41,7 @@ import {
 } from './blog/BlogPages';
 import { LoginHistoryPage } from './login-history/LoginHistoryPage';
 import { LandingPage } from './LandingPage';
+import { PublicBlogPage } from './PublicBlogPage';
 import { buildMenuByAccess } from './menu.config';
 import { SchemaForm } from './shared/form/SchemaForm';
 import { SchemaQueryBar } from './shared/list/SchemaQueryBar';
@@ -4056,6 +4057,27 @@ function App() {
 
   if (!isAuthed || !user) {
     const isAuthEntry = location.pathname === '/login' || location.pathname === '/register';
+    const isPublicBlogEntry = location.pathname === '/blog';
+
+    if (isPublicBlogEntry) {
+      return (
+        <ConfigProvider theme={authTheme}>
+          <PublicBlogPage
+            systemTitle={publicSystemTitle}
+            primaryColor={branding.primaryColor}
+            footerText={publicFooterText}
+            onBackHome={() => navigate('/')}
+            onStart={() => {
+              setMode('login');
+              setAuthCaptchaRequired(false);
+              setAuthCaptcha(null);
+              authForm.resetFields(['captchaCode']);
+              navigate('/login');
+            }}
+          />
+        </ConfigProvider>
+      );
+    }
 
     if (!isAuthEntry) {
       return (
@@ -4064,6 +4086,7 @@ function App() {
             systemTitle={publicSystemTitle}
             primaryColor={branding.primaryColor}
             footerText={publicFooterText}
+            onOpenBlog={() => navigate('/blog')}
             onStart={() => {
               setMode('login');
               setAuthCaptchaRequired(false);
