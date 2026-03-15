@@ -720,11 +720,13 @@ body {
   text-decoration: underline;
 }
 
+/* 基础框架约束：业务页默认隐藏普通 Card 头，但凡带 extra 操作区或显式 keep-card-head 的卡片，头部必须可见，避免创建/编辑页丢保存按钮 */
 .ant-card .ant-card-head-title {
   display: none;
 }
 
-.ant-card.keep-card-head .ant-card-head-title {
+.ant-card.keep-card-head .ant-card-head-title,
+.ant-card:has(.ant-card-extra) .ant-card-head-title {
   display: block;
 }
 
@@ -751,7 +753,8 @@ body {
   display: none !important;
 }
 
-.app-content .ant-card.keep-card-head .ant-card-head {
+.app-content .ant-card.keep-card-head .ant-card-head,
+.app-content .ant-card:has(.ant-card-extra) .ant-card-head {
   display: flex !important;
 }
 
@@ -904,17 +907,20 @@ body {
     border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   }
 
-  .app-content .ant-card.keep-card-head .ant-card-head {
+  .app-content .ant-card.keep-card-head .ant-card-head,
+  .app-content .ant-card:has(.ant-card-extra) .ant-card-head {
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 8px;
   }
 
-  .app-content .ant-card.keep-card-head .ant-card-extra {
+  .app-content .ant-card.keep-card-head .ant-card-extra,
+  .app-content .ant-card:has(.ant-card-extra) .ant-card-extra {
     width: 100%;
   }
 
-  .app-content .ant-card.keep-card-head .ant-card-extra .ant-space {
+  .app-content .ant-card.keep-card-head .ant-card-extra .ant-space,
+  .app-content .ant-card:has(.ant-card-extra) .ant-card-extra .ant-space {
     width: 100%;
     justify-content: flex-end;
     flex-wrap: wrap;
