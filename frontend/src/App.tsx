@@ -644,6 +644,7 @@ function UsersListPage({
           loading={loading}
           columns={columns}
           dataSource={rows}
+          scroll={{ x: 1080 }}
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
