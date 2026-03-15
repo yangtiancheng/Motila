@@ -3910,6 +3910,7 @@ function App() {
   const authTheme = getThemeBySkin(effectiveSkin, branding);
   const isAuthed = !!token && !!user;
   const [publicSystemTitle, setPublicSystemTitle] = useState<string>('Welcome to Motila');
+  const [publicFooterText, setPublicFooterText] = useState<string>('Motila © 2026');
 
   useEffect(() => {
     if (isAuthed) return;
@@ -3919,10 +3920,12 @@ function App() {
       .then((config) => {
         if (cancelled) return;
         setPublicSystemTitle(config?.title?.trim() || 'Welcome to Motila');
+        setPublicFooterText(config?.footerText?.trim() || 'Motila © 2026');
       })
       .catch(() => {
         if (cancelled) return;
         setPublicSystemTitle('Welcome to Motila');
+        setPublicFooterText('Motila © 2026');
       });
 
     return () => {
@@ -4060,6 +4063,7 @@ function App() {
           <LandingPage
             systemTitle={publicSystemTitle}
             primaryColor={branding.primaryColor}
+            footerText={publicFooterText}
             onStart={() => {
               setMode('login');
               setAuthCaptchaRequired(false);
