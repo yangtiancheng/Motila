@@ -81,3 +81,23 @@ export class BlogController {
     return this.blogService.deletePosts(dto.ids);
   }
 }
+
+@Controller('public/blog')
+export class PublicBlogController {
+  constructor(private readonly blogService: BlogService) {}
+
+  @Get('categories')
+  listCategories() {
+    return this.blogService.listPublicCategories();
+  }
+
+  @Get('posts')
+  listPosts(@Query() query: ListBlogPostsQueryDto) {
+    return this.blogService.listPublicPosts(query);
+  }
+
+  @Get('posts/:id')
+  getPost(@Param('id') id: string) {
+    return this.blogService.getPublicPost(id);
+  }
+}

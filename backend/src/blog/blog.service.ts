@@ -36,6 +36,40 @@ export class BlogService {
     return { data, total, page, pageSize: rawPageSize };
   }
 
+  async listPublicCategories() {
+    const data = await this.prisma.blogCategory.findMany({
+      where: {
+        posts: {
+          some: {
+            isPublished: true,
+          },
+        },
+      },
+      orderBy: [{ name: 'asc' }],
+      include: {
+        _count: {
+          select: {
+            posts: {
+              where: {
+                isPublished: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return data.map((item) => ({
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+      description: item.description,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      postCount: item._count.posts,
+    }));
+  }
+
   async getCategory(id: string) {
     const found = await this.prisma.blogCategory.findUnique({ where: { id } });
     if (!found) throw new NotFoundException('文章分类不存在');
@@ -110,9 +144,52 @@ export class BlogService {
     return { data, total, page, pageSize: rawPageSize };
   }
 
+  async listPublicPosts(query: ListBlogPostsQueryDto) {
+    const page = query.page ?? 1;
+    const rawPageSize = query.pageSize ?? 9;
+    const pageSize = rawPageSize === 0 ? 1000 : rawPageSize;
+    const skip = (page - 1) * pageSize;
+    const where = {
+      isPublished: true,
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.keyword
+        ? {
+            OR: [
+              { title: { contains: query.keyword } },
+              { slug: { contains: query.keyword } },
+              { summary: { contains: query.keyword } },
+              { contentMd: { contains: query.keyword } },
+            ],
+          }
+        : {}),
+    };
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.blogPost.findMany({
+        where,
+        include: { category: true },
+        orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+        skip: rawPageSize === 0 ? 0 : skip,
+        take: rawPageSize === 0 ? undefined : pageSize,
+      }),
+      this.prisma.blogPost.count({ where }),
+    ]);
+
+    return { data, total, page, pageSize: rawPageSize };
+  }
+
   async getPost(id: string) {
     const found = await this.prisma.blogPost.findUnique({ where: { id }, include: { category: true } });
     if (!found) throw new NotFoundException('文章不存在');
+    return found;
+  }
+
+  async getPublicPost(id: string) {
+    const found = await this.prisma.blogPost.findFirst({
+      where: { id, isPublished: true },
+      include: { category: true },
+    });
+    if (!found) throw new NotFoundException('文章不存在或未发布');
     return found;
   }
 
