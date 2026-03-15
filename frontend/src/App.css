@@ -724,6 +724,10 @@ body {
   display: none;
 }
 
+.ant-card.keep-card-head .ant-card-head-title {
+  display: block;
+}
+
 .ant-card .ant-card-head {
   min-height: 48px;
 }
@@ -745,6 +749,10 @@ body {
 
 .app-content .ant-card .ant-card-head {
   display: none !important;
+}
+
+.app-content .ant-card.keep-card-head .ant-card-head {
+  display: flex !important;
 }
 
 .app-content .ant-card .ant-card-body {
@@ -894,6 +902,22 @@ body {
   .auth-panel-hero {
     border-right: 0;
     border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  }
+
+  .app-content .ant-card.keep-card-head .ant-card-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .app-content .ant-card.keep-card-head .ant-card-extra {
+    width: 100%;
+  }
+
+  .app-content .ant-card.keep-card-head .ant-card-extra .ant-space {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
   .landing-container {
