@@ -3907,7 +3907,6 @@ function App() {
   const isAuthed = !!token && !!user;
   const [publicSystemTitle, setPublicSystemTitle] = useState<string>('Welcome to Motila');
   const [publicFooterText, setPublicFooterText] = useState<string>('Motila © 2026');
-  const [publicLogoSrc, setPublicLogoSrc] = useState<string>('');
 
   useEffect(() => {
     if (isAuthed) return;
@@ -3918,13 +3917,11 @@ function App() {
         if (cancelled) return;
         setPublicSystemTitle(config?.title?.trim() || 'Welcome to Motila');
         setPublicFooterText(config?.footerText?.trim() || 'Motila © 2026');
-        setPublicLogoSrc(config?.logoImage || config?.logoUrl || '');
       })
       .catch(() => {
         if (cancelled) return;
         setPublicSystemTitle('Welcome to Motila');
         setPublicFooterText('Motila © 2026');
-        setPublicLogoSrc('');
       });
 
     return () => {
@@ -4082,7 +4079,6 @@ function App() {
         <ConfigProvider theme={authTheme}>
           <LandingPage
             systemTitle={publicSystemTitle}
-            logoSrc={publicLogoSrc}
             primaryColor={branding.primaryColor}
             footerText={publicFooterText}
             onOpenBlog={() => navigate('/blog')}

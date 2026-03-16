@@ -5,7 +5,6 @@ import './LandingPage.css';
 
 type LandingPageProps = {
   systemTitle: string;
-  logoSrc?: string;
   primaryColor: string;
   footerText: string;
   onStart: () => void;
@@ -84,7 +83,7 @@ function renderFooterContent(text: string) {
   return nodes.length > 0 ? nodes : text;
 }
 
-export function LandingPage({ systemTitle, logoSrc, primaryColor, footerText, onStart, onOpenBlog }: LandingPageProps) {
+export function LandingPage({ systemTitle, primaryColor, footerText, onStart, onOpenBlog }: LandingPageProps) {
   const backdropPalette = useMemo(
     () => LANDING_BACKDROP_PALETTES[Math.floor(Math.random() * LANDING_BACKDROP_PALETTES.length)],
     [],
@@ -107,21 +106,23 @@ export function LandingPage({ systemTitle, logoSrc, primaryColor, footerText, on
 
       <div className="landing-container landing-home-shell">
         <header className="landing-header landing-header-glass">
-          <div className="landing-header-left">
-            <div className="landing-header-brand" role="img" aria-label={systemTitle}>
-              {logoSrc ? <img src={logoSrc} alt={systemTitle} className="landing-header-logo" /> : <span className="landing-header-logo-fallback">M</span>}
-            </div>
+          <div>
+            <Typography.Text className="landing-kicker">MOTILA</Typography.Text>
+            <Typography.Title level={2} className="landing-brand-heading">
+              {systemTitle}
+            </Typography.Title>
           </div>
 
-          <nav className="landing-nav landing-nav-fancy">
-            <button type="button" className="landing-nav-chip chip-blog" onClick={onOpenBlog}>博文</button>
-            <button type="button" className="landing-nav-chip chip-doc">文档</button>
-            <button type="button" className="landing-nav-chip chip-community">社区</button>
+          <nav className="landing-nav">
+            <button type="button">首页</button>
+            <button type="button" onClick={onOpenBlog}>博文</button>
+            <button type="button">文档</button>
+            <button type="button">社区</button>
           </nav>
 
-          <div className="landing-header-right">
-            <Button type="primary" size="large" className="landing-header-action" onClick={onStart}>进入系统</Button>
-          </div>
+          <Button size="large" type="primary" onClick={onStart}>
+            进入系统
+          </Button>
         </header>
 
         <section className="landing-home-hero">
