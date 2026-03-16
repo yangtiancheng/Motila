@@ -3258,7 +3258,6 @@ function AppShell({
   const activeTheme = getThemeBySkin(effectiveSkin, branding);
   const activeSystemConfig = systemConfig;
   const logoSrc = activeSystemConfig?.logoImage || activeSystemConfig?.logoUrl || '';
-  const logoLabel = activeSystemConfig?.name ?? 'Motila';
   const headerTitle = activeSystemConfig?.title ?? 'Motila 管理系统';
   const footerText = activeSystemConfig?.footerText ?? 'Motila © 2026';
 
@@ -3553,11 +3552,7 @@ function AppShell({
                 if (event.key === 'Enter') navigate('/dashboard');
               }}
             >
-              {logoSrc ? (
-                <img src={logoSrc} alt={activeSystemConfig?.name ?? 'logo'} className="logo-image" />
-              ) : (
-                logoLabel
-              )}
+              {logoSrc ? <img src={logoSrc} alt={activeSystemConfig?.name ?? 'logo'} className="logo-image" /> : null}
             </div>
             <Menu mode="inline" selectedKeys={selectedMenuKey ? [selectedMenuKey] : []} items={navigationMenuItems} />
           </Layout.Sider>
@@ -3777,7 +3772,7 @@ function AppShell({
         </Layout>
 
         <Drawer
-          title={logoLabel}
+          title={null}
           placement="left"
           width={260}
           open={mobileMenuOpen}
