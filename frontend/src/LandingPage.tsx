@@ -107,8 +107,10 @@ export function LandingPage({ systemTitle, logoSrc, primaryColor, footerText, on
 
       <div className="landing-container landing-home-shell">
         <header className="landing-header landing-header-glass">
-          <div className="landing-header-brand" role="img" aria-label={systemTitle}>
-            {logoSrc ? <img src={logoSrc} alt={systemTitle} className="landing-header-logo" /> : <span className="landing-header-logo-fallback">M</span>}
+          <div className="landing-header-left">
+            <div className="landing-header-brand" role="img" aria-label={systemTitle}>
+              {logoSrc ? <img src={logoSrc} alt={systemTitle} className="landing-header-logo" /> : <span className="landing-header-logo-fallback">M</span>}
+            </div>
           </div>
 
           <nav className="landing-nav landing-nav-fancy">
@@ -116,6 +118,10 @@ export function LandingPage({ systemTitle, logoSrc, primaryColor, footerText, on
             <button type="button" className="landing-nav-chip chip-doc">文档</button>
             <button type="button" className="landing-nav-chip chip-community">社区</button>
           </nav>
+
+          <div className="landing-header-right">
+            <Button type="primary" size="large" className="landing-header-action" onClick={onStart}>进入系统</Button>
+          </div>
         </header>
 
         <section className="landing-home-hero">
@@ -131,10 +137,6 @@ export function LandingPage({ systemTitle, logoSrc, primaryColor, footerText, on
                 <span className="landing-terminal-typewriter">WELCOME TO MOTILA.</span>
               </div>
             </div>
-          </div>
-
-          <div className="landing-home-actions">
-            <Button type="primary" size="large" onClick={onStart}>进入系统</Button>
           </div>
         </section>
 
