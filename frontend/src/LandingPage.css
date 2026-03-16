@@ -8,9 +8,7 @@
 }
 
 .landing-home-page {
-  background:
-    radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 28%),
-    linear-gradient(180deg, #f8fbff 0%, #ffffff 55%, #f8fafc 100%);
+  background: var(--landing-home-background);
 }
 
 .landing-home-shell {
@@ -164,7 +162,7 @@
   height: 360px;
   left: -80px;
   top: 120px;
-  background: var(--landing-primary);
+  background: var(--landing-backdrop-a, var(--landing-primary));
 }
 
 .landing-backdrop-b {
@@ -172,7 +170,7 @@
   height: 300px;
   right: 20%;
   top: 40px;
-  background: #8b5cf6;
+  background: var(--landing-backdrop-b, #8b5cf6);
 }
 
 .landing-backdrop-c {
@@ -188,7 +186,7 @@
   height: 420px;
   left: 28%;
   bottom: 40px;
-  background: #38bdf8;
+  background: var(--landing-backdrop-d, #38bdf8);
 }
 
 .landing-backdrop-e {
