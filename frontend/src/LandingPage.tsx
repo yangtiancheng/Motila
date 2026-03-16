@@ -5,6 +5,7 @@ import './LandingPage.css';
 
 type LandingPageProps = {
   systemTitle: string;
+  logoSrc?: string;
   primaryColor: string;
   footerText: string;
   onStart: () => void;
@@ -83,7 +84,7 @@ function renderFooterContent(text: string) {
   return nodes.length > 0 ? nodes : text;
 }
 
-export function LandingPage({ systemTitle: _systemTitle, primaryColor, footerText, onStart, onOpenBlog }: LandingPageProps) {
+export function LandingPage({ systemTitle, logoSrc, primaryColor, footerText, onStart, onOpenBlog }: LandingPageProps) {
   const backdropPalette = useMemo(
     () => LANDING_BACKDROP_PALETTES[Math.floor(Math.random() * LANDING_BACKDROP_PALETTES.length)],
     [],
@@ -105,11 +106,15 @@ export function LandingPage({ systemTitle: _systemTitle, primaryColor, footerTex
       <div className="landing-backdrop landing-backdrop-d" />
 
       <div className="landing-container landing-home-shell">
-        <header className="landing-header landing-header-glass landing-header-simple">
-          <nav className="landing-nav">
-            <button type="button" onClick={onOpenBlog}>博文</button>
-            <button type="button">文档</button>
-            <button type="button">社区</button>
+        <header className="landing-header landing-header-glass">
+          <div className="landing-header-brand" role="img" aria-label={systemTitle}>
+            {logoSrc ? <img src={logoSrc} alt={systemTitle} className="landing-header-logo" /> : <span className="landing-header-logo-fallback">M</span>}
+          </div>
+
+          <nav className="landing-nav landing-nav-fancy">
+            <button type="button" className="landing-nav-chip chip-blog" onClick={onOpenBlog}>博文</button>
+            <button type="button" className="landing-nav-chip chip-doc">文档</button>
+            <button type="button" className="landing-nav-chip chip-community">社区</button>
           </nav>
         </header>
 
@@ -121,12 +126,13 @@ export function LandingPage({ systemTitle: _systemTitle, primaryColor, footerTex
               <span className="landing-terminal-dot green" />
             </div>
             <div className="landing-terminal-body">
-              <span className="landing-terminal-prompt">&gt;_</span>
-              <span className="landing-terminal-typewriter">WELCOME TO MOTILA.</span>
+              <div className="landing-terminal-line">
+                <span className="landing-terminal-prompt">&gt;_</span>
+                <span className="landing-terminal-typewriter">WELCOME TO MOTILA.</span>
+              </div>
             </div>
           </div>
 
-          <Typography.Title className="landing-home-title">Hello World</Typography.Title>
           <div className="landing-home-actions">
             <Button type="primary" size="large" onClick={onStart}>进入系统</Button>
           </div>
