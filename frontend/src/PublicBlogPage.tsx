@@ -321,19 +321,22 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
 
         <section className="landing-blog-table-shell">
           <div className="landing-blog-table-head">
+            <span>序号</span>
             <span>标题</span>
             <span>分类</span>
             <span>发布时间</span>
             <span>阅读时长</span>
-            <span>操作</span>
           </div>
 
           {loading ? Array.from({ length: 6 }).map((_, idx) => <Skeleton active key={idx} paragraph={{ rows: 1 }} className="landing-blog-table-skeleton" />) : null}
           {!loading && posts.length === 0 ? <Empty className="landing-blog-empty" description="没有匹配的博客文章" /> : null}
-          {!loading && posts.map((post) => (
+          {!loading && posts.map((post, index) => (
             <article key={post.id} className="landing-blog-table-row" onClick={() => void openDetail(post.id)}>
+              <div className="landing-blog-table-cell landing-blog-table-index">
+                <span>{(page - 1) * pageSize + index + 1}</span>
+              </div>
               <div className="landing-blog-table-cell landing-blog-table-title">
-                <strong>{post.title}</strong>
+                <span>{post.title}</span>
               </div>
               <div className="landing-blog-table-cell">
                 <Tag color="blue">{post.category?.name || '未分类'}</Tag>
@@ -344,11 +347,6 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
               </div>
               <div className="landing-blog-table-cell">
                 <span>{estimateReadMinutes(post.contentMd)} 分钟</span>
-              </div>
-              <div className="landing-blog-table-cell landing-blog-table-actions">
-                <Button type="link" onClick={(event) => { event.stopPropagation(); void openDetail(post.id); }}>
-                  查看详情
-                </Button>
               </div>
             </article>
           ))}
