@@ -261,11 +261,10 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
           onAction={onStart}
         />
         <section id="blog-list-anchor" className="landing-blog-toolbar-card">
-          <div className="landing-blog-toolbar-top">
-            <div>
-              <Typography.Title level={3}>博客文章</Typography.Title>
-              <Typography.Paragraph>分类筛选、搜索和分页都在这，不再往首页乱塞内容。</Typography.Paragraph>
-            </div>
+          <Typography.Title level={3}>博客文章</Typography.Title>
+          <Typography.Paragraph>分类筛选、搜索和分页都在这，不再往首页乱塞内容。</Typography.Paragraph>
+
+          <div className="landing-blog-toolbar-panel">
             <Input
               className="landing-blog-search"
               placeholder="搜索标题、摘要、内容关键词"
@@ -289,9 +288,8 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
                 </Button>
               }
             />
-          </div>
 
-          <div className="landing-blog-filter-row">
+            <div className="landing-blog-filter-row">
             <button
               type="button"
               className={selectedCategoryId === 'all' ? 'active' : ''}
@@ -316,6 +314,7 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
                 {typeof category.postCount === 'number' ? <span>{category.postCount}</span> : null}
               </button>
             ))}
+          </div>
           </div>
         </section>
 

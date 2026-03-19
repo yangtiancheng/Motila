@@ -428,35 +428,73 @@
   margin-top: 8px;
 }
 
-.landing-blog-toolbar-top {
+.landing-blog-toolbar-card {
+  border-radius: 28px;
+  padding: 28px;
+  margin-top: 8px;
+}
+
+.landing-blog-toolbar-card > .ant-typography {
+  margin-bottom: 0 !important;
+}
+
+.landing-blog-toolbar-card > .ant-typography + .ant-typography {
+  margin-top: 8px !important;
+  color: #64748b;
+}
+
+.landing-blog-toolbar-panel {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-  margin-bottom: 18px;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(255, 255, 255, 0.82));
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .landing-blog-search {
-  width: min(420px, 100%);
+  width: 100%;
+}
+
+.landing-blog-search .ant-input-affix-wrapper {
+  border-radius: 14px;
+  min-height: 46px;
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: none;
+}
+
+.landing-blog-search .ant-input-affix-wrapper:focus,
+.landing-blog-search .ant-input-affix-wrapper-focused {
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
 }
 
 .landing-blog-filter-row {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .landing-blog-filter-row button {
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.92);
   color: #334155;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-radius: 999px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.landing-blog-filter-row button:hover {
+  border-color: rgba(59, 130, 246, 0.24);
+  color: var(--landing-primary);
+  transform: translateY(-1px);
 }
 
 .landing-blog-filter-row button span {
@@ -468,13 +506,18 @@
   align-items: center;
   justify-content: center;
   background: rgba(15, 23, 42, 0.06);
-  font-size: 15px;
+  font-size: 13px;
 }
 
 .landing-blog-filter-row button.active {
   color: #fff;
   border-color: transparent;
   background: linear-gradient(135deg, var(--landing-primary), #7c3aed);
+  box-shadow: 0 10px 22px rgba(59, 130, 246, 0.18);
+}
+
+.landing-blog-filter-row button.active span {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .landing-blog-grid {
