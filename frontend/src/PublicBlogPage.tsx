@@ -177,13 +177,14 @@ function extractExcerpt(content?: string | null, summary?: string | null) {
 
 export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, onBackHome }: PublicBlogPageProps) {
   const { message } = AntdApp.useApp();
+  const comingSoon = () => message.info('正在火速开发中...');
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(6);
+  const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activePost, setActivePost] = useState<PostItem | null>(null);
@@ -250,11 +251,11 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
       <div className="landing-container landing-home-shell">
         <PublicHeader
           kicker={systemName}
+          onBrandClick={onBackHome}
           navItems={[
-            { key: 'home', label: '首页', onClick: onBackHome },
             { key: 'blog', label: '博文', onClick: () => document.getElementById('blog-list-anchor')?.scrollIntoView({ behavior: 'smooth' }) },
-            { key: 'docs', label: '文档' },
-            { key: 'community', label: '社区' },
+            { key: 'docs', label: '文档', onClick: comingSoon },
+            { key: 'community', label: '社区', onClick: comingSoon },
           ]}
           actionLabel="进入系统"
           onAction={onStart}
@@ -318,22 +319,34 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
           </div>
         </section>
 
-        <section className="landing-blog-grid">
-          {loading ? Array.from({ length: 6 }).map((_, idx) => <Skeleton.Button active block key={idx} style={{ height: 240 }} />) : null}
+        <section className="landing-blog-table-shell">
+          <div className="landing-blog-table-head">
+            <span>序号</span>
+            <span>标题</span>
+            <span>分类</span>
+            <span>发布时间</span>
+            <span>阅读时长</span>
+          </div>
+
+          {loading ? Array.from({ length: 6 }).map((_, idx) => <Skeleton active key={idx} paragraph={{ rows: 1 }} className="landing-blog-table-skeleton" />) : null}
           {!loading && posts.length === 0 ? <Empty className="landing-blog-empty" description="没有匹配的博客文章" /> : null}
-          {!loading && posts.map((post) => (
-            <article key={post.id} className="landing-blog-card" onClick={() => void openDetail(post.id)}>
-              <div className="landing-blog-card-top">
-                <Tag color="blue">{post.category?.name || '未分类'}</Tag>
-                <span><CalendarOutlined /> {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : '未发布'}</span>
+          {!loading && posts.map((post, index) => (
+            <article key={post.id} className="landing-blog-table-row" onClick={() => void openDetail(post.id)}>
+              <div className="landing-blog-table-cell landing-blog-table-index">
+                <span>{(page - 1) * pageSize + index + 1}</span>
               </div>
-              <Typography.Title level={4}>{post.title}</Typography.Title>
-              <Typography.Paragraph>{extractExcerpt(post.contentMd, post.summary)}</Typography.Paragraph>
-              <div className="landing-blog-card-footer">
-                <span>{estimateReadMinutes(post.contentMd)} 分钟阅读</span>
-                <Button type="link" onClick={(event) => { event.stopPropagation(); void openDetail(post.id); }}>
-                  查看详情
-                </Button>
+              <div className="landing-blog-table-cell landing-blog-table-title">
+                <span>{post.title}</span>
+              </div>
+              <div className="landing-blog-table-cell">
+                <Tag color="blue">{post.category?.name || '未分类'}</Tag>
+              </div>
+              <div className="landing-blog-table-cell landing-blog-table-date">
+                <CalendarOutlined />
+                <span>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : '未发布'}</span>
+              </div>
+              <div className="landing-blog-table-cell">
+                <span>{estimateReadMinutes(post.contentMd)} 分钟</span>
               </div>
             </article>
           ))}
