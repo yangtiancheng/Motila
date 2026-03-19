@@ -4084,7 +4084,6 @@ function App() {
             systemName={publicSystemName}
             primaryColor={branding.primaryColor}
             footerText={publicFooterText}
-            onOpenBlog={() => navigate('/blog')}
             onStart={() => {
               setMode('login');
               setAuthCaptchaRequired(false);
