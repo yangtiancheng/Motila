@@ -334,7 +334,6 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
             <article key={post.id} className="landing-blog-table-row" onClick={() => void openDetail(post.id)}>
               <div className="landing-blog-table-cell landing-blog-table-title">
                 <strong>{post.title}</strong>
-                <Typography.Paragraph>{extractExcerpt(post.contentMd, post.summary)}</Typography.Paragraph>
               </div>
               <div className="landing-blog-table-cell">
                 <Tag color="blue">{post.category?.name || '未分类'}</Tag>
