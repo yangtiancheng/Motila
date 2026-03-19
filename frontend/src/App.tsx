@@ -4061,7 +4061,6 @@ function App() {
       return (
         <ConfigProvider theme={authTheme}>
           <PublicBlogPage
-            systemTitle={publicSystemTitle}
             systemName={publicSystemName}
             primaryColor={branding.primaryColor}
             footerText={publicFooterText}

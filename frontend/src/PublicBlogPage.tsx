@@ -1,6 +1,6 @@
 import {
   App as AntdApp,
-  Avatar,
+  
   Button,
   Empty,
   Input,
@@ -10,15 +10,14 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import { SearchOutlined, ArrowRightOutlined, CalendarOutlined } from '@ant-design/icons';
-import { useEffect, useMemo, useState } from 'react';
+import { SearchOutlined, CalendarOutlined } from '@ant-design/icons';
+import { useEffect, useState } from 'react';
 
 import './LandingPage.css';
 import { PublicFooter } from './PublicFooter';
 import { PublicHeader } from './PublicHeader';
 
 type PublicBlogPageProps = {
-  systemTitle: string;
   systemName: string;
   primaryColor: string;
   footerText: string;
@@ -176,7 +175,7 @@ function extractExcerpt(content?: string | null, summary?: string | null) {
   return (content || '').replace(/[#>*`\-\[\]()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140) || '这篇文章暂时还没有摘要。';
 }
 
-export function PublicBlogPage({ systemTitle, systemName, primaryColor, footerText, onStart, onBackHome }: PublicBlogPageProps) {
+export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, onBackHome }: PublicBlogPageProps) {
   const { message } = AntdApp.useApp();
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -225,8 +224,6 @@ export function PublicBlogPage({ systemTitle, systemName, primaryColor, footerTe
       .finally(() => setLoading(false));
   }, [activePostId, keyword, message, page, pageSize, selectedCategoryId]);
 
-  const featuredPost = posts[0] ?? null;
-  const heroSummary = useMemo(() => extractExcerpt(featuredPost?.contentMd, featuredPost?.summary), [featuredPost]);
 
   const openDetail = async (postId: string) => {
     setDetailLoading(true);
@@ -262,36 +259,6 @@ export function PublicBlogPage({ systemTitle, systemName, primaryColor, footerTe
           actionLabel="进入系统"
           onAction={onStart}
         />
-
-        <section className="landing-blog-hero">
-          <div className="landing-blog-featured-card">
-            {featuredPost ? (
-              <>
-                <div className="landing-blog-featured-meta">
-                  <Tag color="blue">{featuredPost.category?.name || '未分类'}</Tag>
-                  <span>{featuredPost.publishedAt ? new Date(featuredPost.publishedAt).toLocaleDateString() : '未设置发布时间'}</span>
-                </div>
-                <Typography.Title level={3}>{featuredPost.title}</Typography.Title>
-                <Typography.Paragraph>{heroSummary}</Typography.Paragraph>
-                <div className="landing-blog-featured-footer">
-                  <div className="landing-blog-authorish">
-                    <Avatar size={40}>{systemTitle.slice(0, 1)}</Avatar>
-                    <div>
-                      <strong>{systemTitle}</strong>
-                      <span>{estimateReadMinutes(featuredPost.contentMd)} 分钟阅读</span>
-                    </div>
-                  </div>
-                  <Button type="link" icon={<ArrowRightOutlined />} onClick={() => void openDetail(featuredPost.id)}>
-                    阅读全文
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <Empty description="还没有已发布的博客文章" />
-            )}
-          </div>
-        </section>
-
         <section id="blog-list-anchor" className="landing-blog-toolbar-card">
           <div className="landing-blog-toolbar-top">
             <div>
