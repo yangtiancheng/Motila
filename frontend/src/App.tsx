@@ -3905,6 +3905,7 @@ function App() {
   const effectiveSkin = resolveEffectiveSkin(skin, systemPrefersDark);
   const authTheme = getThemeBySkin(effectiveSkin, branding);
   const isAuthed = !!token && !!user;
+  const [publicSystemName, setPublicSystemName] = useState<string>('Motila');
   const [publicSystemTitle, setPublicSystemTitle] = useState<string>('Welcome to Motila');
   const [publicFooterText, setPublicFooterText] = useState<string>('Motila © 2026');
 
@@ -3915,11 +3916,13 @@ function App() {
     api<SystemConfigItem | null>('/system-configs/active')
       .then((config) => {
         if (cancelled) return;
+        setPublicSystemName(config?.name?.trim() || 'Motila');
         setPublicSystemTitle(config?.title?.trim() || 'Welcome to Motila');
         setPublicFooterText(config?.footerText?.trim() || 'Motila © 2026');
       })
       .catch(() => {
         if (cancelled) return;
+        setPublicSystemName('Motila');
         setPublicSystemTitle('Welcome to Motila');
         setPublicFooterText('Motila © 2026');
       });
@@ -4059,6 +4062,7 @@ function App() {
         <ConfigProvider theme={authTheme}>
           <PublicBlogPage
             systemTitle={publicSystemTitle}
+            systemName={publicSystemName}
             primaryColor={branding.primaryColor}
             footerText={publicFooterText}
             onBackHome={() => navigate('/')}
@@ -4078,7 +4082,7 @@ function App() {
       return (
         <ConfigProvider theme={authTheme}>
           <LandingPage
-            systemTitle={publicSystemTitle}
+            systemName={publicSystemName}
             primaryColor={branding.primaryColor}
             footerText={publicFooterText}
             onOpenBlog={() => navigate('/blog')}
