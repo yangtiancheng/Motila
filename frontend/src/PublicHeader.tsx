@@ -9,22 +9,23 @@ type LandingHeaderNavItem = {
 type PublicHeaderProps = {
   kicker?: string;
   title?: string;
-  navItems: LandingHeaderNavItem[];
+  navItems?: LandingHeaderNavItem[];
   actionLabel: string;
   onAction: () => void;
+  onBrandClick?: () => void;
 };
 
-export function PublicHeader({ kicker, title, navItems, actionLabel, onAction }: PublicHeaderProps) {
+export function PublicHeader({ kicker, title, navItems = [], actionLabel, onAction, onBrandClick }: PublicHeaderProps) {
   return (
     <header className="landing-header landing-header-glass">
-      <div>
+      <button type="button" className="landing-brand-button" onClick={onBrandClick}>
         {kicker ? <Typography.Text className="landing-kicker">{kicker}</Typography.Text> : null}
         {title ? (
           <Typography.Title level={2} className="landing-brand-heading">
             {title}
           </Typography.Title>
         ) : null}
-      </div>
+      </button>
 
       <nav className="landing-nav">
         {navItems.map((item) => (

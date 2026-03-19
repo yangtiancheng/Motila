@@ -177,6 +177,7 @@ function extractExcerpt(content?: string | null, summary?: string | null) {
 
 export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, onBackHome }: PublicBlogPageProps) {
   const { message } = AntdApp.useApp();
+  const comingSoon = () => message.info('正在火速开发中...');
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [posts, setPosts] = useState<PostItem[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
@@ -250,11 +251,11 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
       <div className="landing-container landing-home-shell">
         <PublicHeader
           kicker={systemName}
+          onBrandClick={onBackHome}
           navItems={[
-            { key: 'home', label: '首页', onClick: onBackHome },
             { key: 'blog', label: '博文', onClick: () => document.getElementById('blog-list-anchor')?.scrollIntoView({ behavior: 'smooth' }) },
-            { key: 'docs', label: '文档' },
-            { key: 'community', label: '社区' },
+            { key: 'docs', label: '文档', onClick: comingSoon },
+            { key: 'community', label: '社区', onClick: comingSoon },
           ]}
           actionLabel="进入系统"
           onAction={onStart}

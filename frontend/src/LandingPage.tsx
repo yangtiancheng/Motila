@@ -91,8 +91,8 @@ export function LandingPage({ systemName, primaryColor, footerText, onStart, onO
       <div className="landing-container landing-home-shell">
         <PublicHeader
           kicker={systemName}
+          onBrandClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           navItems={[
-            { key: 'home', label: '首页' },
             { key: 'blog', label: '博文', onClick: onOpenBlog },
             { key: 'docs', label: '文档', onClick: comingSoon },
             { key: 'community', label: '社区', onClick: comingSoon },
