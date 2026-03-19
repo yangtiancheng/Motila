@@ -1,3 +1,4 @@
+import { App as AntdApp } from 'antd';
 import { useMemo } from 'react';
 
 import './LandingPage.css';
@@ -65,6 +66,8 @@ const LANDING_BACKDROP_PALETTES: LandingBackdropPalette[] = [
 ];
 
 export function LandingPage({ systemName, primaryColor, footerText, onStart, onOpenBlog }: LandingPageProps) {
+  const { message } = AntdApp.useApp();
+  const comingSoon = () => message.info('正在火速开发中...');
   const backdropPalette = useMemo(
     () => LANDING_BACKDROP_PALETTES[Math.floor(Math.random() * LANDING_BACKDROP_PALETTES.length)],
     [],
@@ -91,8 +94,8 @@ export function LandingPage({ systemName, primaryColor, footerText, onStart, onO
           navItems={[
             { key: 'home', label: '首页' },
             { key: 'blog', label: '博文', onClick: onOpenBlog },
-            { key: 'docs', label: '文档' },
-            { key: 'community', label: '社区' },
+            { key: 'docs', label: '文档', onClick: comingSoon },
+            { key: 'community', label: '社区', onClick: comingSoon },
           ]}
           actionLabel="进入系统"
           onAction={onStart}
