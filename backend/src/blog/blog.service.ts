@@ -237,6 +237,15 @@ export class BlogService {
     });
   }
 
+  async publishPosts(ids: string[]) {
+    const now = new Date();
+    const result = await this.prisma.blogPost.updateMany({
+      where: { id: { in: ids }, isPublished: false },
+      data: { isPublished: true, publishedAt: now },
+    });
+    return { count: result.count };
+  }
+
   async deletePosts(ids: string[]) {
     const result = await this.prisma.blogPost.deleteMany({ where: { id: { in: ids } } });
     return { count: result.count };

@@ -1,6 +1,6 @@
 import {
   App as AntdApp,
-  Avatar,
+  
   Button,
   Empty,
   Input,
@@ -10,13 +10,15 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import { SearchOutlined, ArrowRightOutlined, CalendarOutlined, ReadOutlined } from '@ant-design/icons';
-import { useEffect, useMemo, useState } from 'react';
+import { SearchOutlined, CalendarOutlined } from '@ant-design/icons';
+import { useEffect, useState } from 'react';
 
 import './LandingPage.css';
+import { PublicFooter } from './PublicFooter';
+import { PublicHeader } from './PublicHeader';
 
 type PublicBlogPageProps = {
-  systemTitle: string;
+  systemName: string;
   primaryColor: string;
   footerText: string;
   onStart: () => void;
@@ -84,26 +86,6 @@ function buildQuery(params: Record<string, string | number | undefined | null>) 
     search.set(key, String(value));
   });
   return search.toString();
-}
-
-function renderFooterContent(text: string) {
-  const regex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
-  const nodes: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    nodes.push(
-      <a key={`${match[2]}-${match.index}`} href={match[2]} target="_blank" rel="noopener noreferrer">
-        {match[1]}
-      </a>,
-    );
-    lastIndex = regex.lastIndex;
-  }
-
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
-  return nodes.length > 0 ? nodes : text;
 }
 
 function markdownToHtml(markdown?: string | null) {
@@ -193,7 +175,7 @@ function extractExcerpt(content?: string | null, summary?: string | null) {
   return (content || '').replace(/[#>*`\-\[\]()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140) || '这篇文章暂时还没有摘要。';
 }
 
-export function PublicBlogPage({ systemTitle, primaryColor, footerText, onStart, onBackHome }: PublicBlogPageProps) {
+export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, onBackHome }: PublicBlogPageProps) {
   const { message } = AntdApp.useApp();
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -206,6 +188,7 @@ export function PublicBlogPage({ systemTitle, primaryColor, footerText, onStart,
   const [loading, setLoading] = useState(false);
   const [activePost, setActivePost] = useState<PostItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const activePostId = activePost?.id;
 
   useEffect(() => {
     blogApi<CategoryItem[]>('/public/blog/categories')
@@ -227,7 +210,7 @@ export function PublicBlogPage({ systemTitle, primaryColor, footerText, onStart,
         setPosts(res.data);
         setTotal(res.total);
         if (res.data.length > 0) {
-          const nextId = activePost && res.data.some((item) => item.id === activePost.id) ? activePost.id : res.data[0].id;
+          const nextId = activePostId && res.data.some((item) => item.id === activePostId) ? activePostId : res.data[0].id;
           setDetailLoading(true);
           blogApi<PostItem>(`/public/blog/posts/${nextId}`)
             .then((detail) => setActivePost(detail))
@@ -239,10 +222,8 @@ export function PublicBlogPage({ systemTitle, primaryColor, footerText, onStart,
       })
       .catch((error) => message.error(parseBlogError(error)))
       .finally(() => setLoading(false));
-  }, [activePost, keyword, message, page, pageSize, selectedCategoryId]);
+  }, [activePostId, keyword, message, page, pageSize, selectedCategoryId]);
 
-  const featuredPost = posts[0] ?? null;
-  const heroSummary = useMemo(() => extractExcerpt(featuredPost?.contentMd, featuredPost?.summary), [featuredPost]);
 
   const openDetail = async (postId: string) => {
     setDetailLoading(true);
@@ -266,72 +247,18 @@ export function PublicBlogPage({ systemTitle, primaryColor, footerText, onStart,
       <div className="landing-backdrop landing-backdrop-d" />
       <div className="landing-backdrop landing-backdrop-e" />
 
-      <div className="landing-container">
-        <header className="landing-header landing-header-glass">
-          <div>
-            <Typography.Text className="landing-kicker">MOTILA BLOG</Typography.Text>
-            <Typography.Title level={2} className="landing-brand-heading">
-              {systemTitle}
-            </Typography.Title>
-          </div>
-
-          <nav className="landing-nav">
-            <button type="button" onClick={onBackHome}>首页</button>
-            <button type="button" onClick={() => document.getElementById('blog-list-anchor')?.scrollIntoView({ behavior: 'smooth' })}>博文</button>
-            <button type="button" onClick={() => document.getElementById('blog-detail-anchor')?.scrollIntoView({ behavior: 'smooth' })}>详情</button>
-            <button type="button" onClick={onStart}>登录后台</button>
-          </nav>
-
-          <Button size="large" type="primary" onClick={onStart}>
-            进入系统
-          </Button>
-        </header>
-
-        <section className="landing-blog-hero">
-          <div className="landing-blog-hero-copy">
-            <Typography.Text className="landing-kicker">公开博客 · 不登录也能看</Typography.Text>
-            <Typography.Title className="landing-blog-title">
-              博文单独成页，首页不掺和，阅读体验也更像样。
-            </Typography.Title>
-            <Typography.Paragraph className="landing-blog-subtitle">
-              支持按博客分类筛选、关键词搜索、分页浏览和沉浸式详情阅读。首页只做品牌入口，博客内容集中放在独立页面，结构更清楚。
-            </Typography.Paragraph>
-            <Space wrap>
-              <Button type="primary" size="large" icon={<ReadOutlined />} onClick={() => document.getElementById('blog-list-anchor')?.scrollIntoView({ behavior: 'smooth' })}>
-                开始阅读
-              </Button>
-              <Button size="large" onClick={onBackHome}>返回首页</Button>
-            </Space>
-          </div>
-
-          <div className="landing-blog-featured-card">
-            {featuredPost ? (
-              <>
-                <div className="landing-blog-featured-meta">
-                  <Tag color="blue">{featuredPost.category?.name || '未分类'}</Tag>
-                  <span>{featuredPost.publishedAt ? new Date(featuredPost.publishedAt).toLocaleDateString() : '未设置发布时间'}</span>
-                </div>
-                <Typography.Title level={3}>{featuredPost.title}</Typography.Title>
-                <Typography.Paragraph>{heroSummary}</Typography.Paragraph>
-                <div className="landing-blog-featured-footer">
-                  <div className="landing-blog-authorish">
-                    <Avatar size={40}>{systemTitle.slice(0, 1)}</Avatar>
-                    <div>
-                      <strong>{systemTitle}</strong>
-                      <span>{estimateReadMinutes(featuredPost.contentMd)} 分钟阅读</span>
-                    </div>
-                  </div>
-                  <Button type="link" icon={<ArrowRightOutlined />} onClick={() => void openDetail(featuredPost.id)}>
-                    阅读全文
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <Empty description="还没有已发布的博客文章" />
-            )}
-          </div>
-        </section>
-
+      <div className="landing-container landing-home-shell">
+        <PublicHeader
+          kicker={systemName}
+          navItems={[
+            { key: 'home', label: '首页', onClick: onBackHome },
+            { key: 'blog', label: '博文', onClick: () => document.getElementById('blog-list-anchor')?.scrollIntoView({ behavior: 'smooth' }) },
+            { key: 'docs', label: '文档' },
+            { key: 'community', label: '社区' },
+          ]}
+          actionLabel="进入系统"
+          onAction={onStart}
+        />
         <section id="blog-list-anchor" className="landing-blog-toolbar-card">
           <div className="landing-blog-toolbar-top">
             <div>
@@ -446,9 +373,7 @@ export function PublicBlogPage({ systemTitle, primaryColor, footerText, onStart,
           )}
         </section>
 
-        <footer className="landing-footer landing-footer-plain landing-footer-rich">
-          <Typography.Text>{renderFooterContent(footerText)}</Typography.Text>
-        </footer>
+        <PublicFooter footerText={footerText} />
       </div>
     </div>
   );

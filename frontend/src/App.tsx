@@ -3258,7 +3258,6 @@ function AppShell({
   const activeTheme = getThemeBySkin(effectiveSkin, branding);
   const activeSystemConfig = systemConfig;
   const logoSrc = activeSystemConfig?.logoImage || activeSystemConfig?.logoUrl || '';
-  const logoLabel = activeSystemConfig?.name ?? 'Motila';
   const headerTitle = activeSystemConfig?.title ?? 'Motila 管理系统';
   const footerText = activeSystemConfig?.footerText ?? 'Motila © 2026';
 
@@ -3553,11 +3552,7 @@ function AppShell({
                 if (event.key === 'Enter') navigate('/dashboard');
               }}
             >
-              {logoSrc ? (
-                <img src={logoSrc} alt={activeSystemConfig?.name ?? 'logo'} className="logo-image" />
-              ) : (
-                logoLabel
-              )}
+              {logoSrc ? <img src={logoSrc} alt={activeSystemConfig?.name ?? 'logo'} className="logo-image" /> : null}
             </div>
             <Menu mode="inline" selectedKeys={selectedMenuKey ? [selectedMenuKey] : []} items={navigationMenuItems} />
           </Layout.Sider>
@@ -3777,7 +3772,7 @@ function AppShell({
         </Layout>
 
         <Drawer
-          title={logoLabel}
+          title={null}
           placement="left"
           width={260}
           open={mobileMenuOpen}
@@ -3910,6 +3905,7 @@ function App() {
   const effectiveSkin = resolveEffectiveSkin(skin, systemPrefersDark);
   const authTheme = getThemeBySkin(effectiveSkin, branding);
   const isAuthed = !!token && !!user;
+  const [publicSystemName, setPublicSystemName] = useState<string>('Motila');
   const [publicSystemTitle, setPublicSystemTitle] = useState<string>('Welcome to Motila');
   const [publicFooterText, setPublicFooterText] = useState<string>('Motila © 2026');
 
@@ -3920,11 +3916,13 @@ function App() {
     api<SystemConfigItem | null>('/system-configs/active')
       .then((config) => {
         if (cancelled) return;
+        setPublicSystemName(config?.name?.trim() || 'Motila');
         setPublicSystemTitle(config?.title?.trim() || 'Welcome to Motila');
         setPublicFooterText(config?.footerText?.trim() || 'Motila © 2026');
       })
       .catch(() => {
         if (cancelled) return;
+        setPublicSystemName('Motila');
         setPublicSystemTitle('Welcome to Motila');
         setPublicFooterText('Motila © 2026');
       });
@@ -4063,7 +4061,7 @@ function App() {
       return (
         <ConfigProvider theme={authTheme}>
           <PublicBlogPage
-            systemTitle={publicSystemTitle}
+            systemName={publicSystemName}
             primaryColor={branding.primaryColor}
             footerText={publicFooterText}
             onBackHome={() => navigate('/')}
@@ -4083,7 +4081,7 @@ function App() {
       return (
         <ConfigProvider theme={authTheme}>
           <LandingPage
-            systemTitle={publicSystemTitle}
+            systemName={publicSystemName}
             primaryColor={branding.primaryColor}
             footerText={publicFooterText}
             onOpenBlog={() => navigate('/blog')}
