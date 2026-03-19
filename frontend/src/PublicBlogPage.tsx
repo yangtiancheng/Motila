@@ -184,7 +184,7 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize] = useState(6);
+  const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activePost, setActivePost] = useState<PostItem | null>(null);
@@ -319,18 +319,20 @@ export function PublicBlogPage({ systemName, primaryColor, footerText, onStart, 
           </div>
         </section>
 
-        <section className="landing-blog-grid">
-          {loading ? Array.from({ length: 6 }).map((_, idx) => <Skeleton.Button active block key={idx} style={{ height: 240 }} />) : null}
+        <section className="landing-blog-list">
+          {loading ? Array.from({ length: 6 }).map((_, idx) => <Skeleton active key={idx} paragraph={{ rows: 3 }} className="landing-blog-list-skeleton" />) : null}
           {!loading && posts.length === 0 ? <Empty className="landing-blog-empty" description="没有匹配的博客文章" /> : null}
           {!loading && posts.map((post) => (
-            <article key={post.id} className="landing-blog-card" onClick={() => void openDetail(post.id)}>
-              <div className="landing-blog-card-top">
-                <Tag color="blue">{post.category?.name || '未分类'}</Tag>
-                <span><CalendarOutlined /> {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : '未发布'}</span>
+            <article key={post.id} className="landing-blog-list-item" onClick={() => void openDetail(post.id)}>
+              <div className="landing-blog-list-main">
+                <div className="landing-blog-card-top">
+                  <Tag color="blue">{post.category?.name || '未分类'}</Tag>
+                  <span><CalendarOutlined /> {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString() : '未发布'}</span>
+                </div>
+                <Typography.Title level={4}>{post.title}</Typography.Title>
+                <Typography.Paragraph>{extractExcerpt(post.contentMd, post.summary)}</Typography.Paragraph>
               </div>
-              <Typography.Title level={4}>{post.title}</Typography.Title>
-              <Typography.Paragraph>{extractExcerpt(post.contentMd, post.summary)}</Typography.Paragraph>
-              <div className="landing-blog-card-footer">
+              <div className="landing-blog-list-side">
                 <span>{estimateReadMinutes(post.contentMd)} 分钟阅读</span>
                 <Button type="link" onClick={(event) => { event.stopPropagation(); void openDetail(post.id); }}>
                   查看详情
