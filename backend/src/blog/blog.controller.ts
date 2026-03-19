@@ -6,6 +6,7 @@ import { RbacGuard } from '../rbac/rbac.guard';
 import {
   BatchDeleteBlogCategoriesDto,
   BatchDeleteBlogPostsDto,
+  BatchPublishBlogPostsDto,
   CreateBlogCategoryDto,
   CreateBlogPostDto,
   ListBlogCategoriesQueryDto,
@@ -73,6 +74,12 @@ export class BlogController {
   @RequirePermission('blog-post.update')
   updatePost(@Param('id') id: string, @Body() dto: UpdateBlogPostDto) {
     return this.blogService.updatePost(id, dto);
+  }
+
+  @Patch('posts/batch-publish')
+  @RequirePermission('blog-post.update')
+  publishPosts(@Body() dto: BatchPublishBlogPostsDto) {
+    return this.blogService.publishPosts(dto.ids);
   }
 
   @Delete('posts/batch-delete')

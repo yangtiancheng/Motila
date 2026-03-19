@@ -138,3 +138,10 @@ export class BatchDeleteBlogPostsDto {
   @IsString({ each: true })
   ids!: string[];
 }
+
+export class BatchPublishBlogPostsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  ids!: string[];
+}

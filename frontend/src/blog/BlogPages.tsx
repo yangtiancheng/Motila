@@ -378,6 +378,29 @@ export function BlogPostListPage({
     void fetchRows();
   }, [page, pageSize, keyword, categoryId]);
 
+  const batchPublish = async () => {
+    if (!selectedRowKeys.length) return;
+    modal.confirm({
+      title: '发布确认',
+      content: `要批量发布当前选中的${selectedRowKeys.length}篇文章吗？`,
+      okText: '确认',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const res = await blogApi<{ count: number }>('/blog/posts/batch-publish', {
+            method: 'PATCH',
+            body: JSON.stringify({ ids: selectedRowKeys }),
+          });
+          message.success(`批量发布完成，本次发布${res.count}篇文章`);
+          setSelectedRowKeys([]);
+          void fetchRows();
+        } catch (error) {
+          message.error(parseBlogError(error));
+        }
+      },
+    });
+  };
+
   const batchDelete = async () => {
     if (!selectedRowKeys.length) return;
     modal.confirm({
@@ -434,6 +457,9 @@ export function BlogPostListPage({
 
       <Card title="文章列表">
         <Space style={{ marginBottom: 12 }}>
+          <Button type="primary" disabled={!selectedRowKeys.length || !canUpdate} onClick={() => void batchPublish()}>
+            批量发布
+          </Button>
           <Button danger disabled={!selectedRowKeys.length || !canUpdate} onClick={() => void batchDelete()}>
             删除
           </Button>
