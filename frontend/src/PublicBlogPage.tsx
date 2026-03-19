@@ -189,6 +189,7 @@ export function PublicBlogPage({ systemTitle, systemName, primaryColor, footerTe
   const [loading, setLoading] = useState(false);
   const [activePost, setActivePost] = useState<PostItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const activePostId = activePost?.id;
 
   useEffect(() => {
     blogApi<CategoryItem[]>('/public/blog/categories')
@@ -210,7 +211,7 @@ export function PublicBlogPage({ systemTitle, systemName, primaryColor, footerTe
         setPosts(res.data);
         setTotal(res.total);
         if (res.data.length > 0) {
-          const nextId = activePost && res.data.some((item) => item.id === activePost.id) ? activePost.id : res.data[0].id;
+          const nextId = activePostId && res.data.some((item) => item.id === activePostId) ? activePostId : res.data[0].id;
           setDetailLoading(true);
           blogApi<PostItem>(`/public/blog/posts/${nextId}`)
             .then((detail) => setActivePost(detail))
@@ -222,7 +223,7 @@ export function PublicBlogPage({ systemTitle, systemName, primaryColor, footerTe
       })
       .catch((error) => message.error(parseBlogError(error)))
       .finally(() => setLoading(false));
-  }, [activePost, keyword, message, page, pageSize, selectedCategoryId]);
+  }, [activePostId, keyword, message, page, pageSize, selectedCategoryId]);
 
   const featuredPost = posts[0] ?? null;
   const heroSummary = useMemo(() => extractExcerpt(featuredPost?.contentMd, featuredPost?.summary), [featuredPost]);
